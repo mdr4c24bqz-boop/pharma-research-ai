@@ -216,55 +216,81 @@ function searchJstage() {
 }
 
 // 国内・海外を同時検索
-  
+
 async function searchBoth() {
   const q = getKeyword("keyword");
   if (!q) return;
 
-  // J-STAGEで日本語検索
-  window.open(
-    "https://www.jstage.jst.go.jp/result/global/-char/ja?globalSearchKey=" +
-    encodeURIComponent(q),
-    "_blank"
-  );
-
-  // CiNii Researchで日本語検索
-  window.open(
-    "https://cir.nii.ac.jp/all?q=" +
-    encodeURIComponent(q),
-    "_blank"
-  );
-
-  // PubMedで英語検索
-  const pubmedTab = window.open("about:blank", "_blank");
+  let english = q;
 
   try {
-    const english = await translateToEnglish(q);
-
-    const url =
-      "https://pubmed.ncbi.nlm.nih.gov/?term=" +
-      encodeURIComponent(english);
-
-    if (pubmedTab) {
-      pubmedTab.location.href = url;
-    } else {
-      window.location.href = url;
-    }
-
+    english = await translateToEnglish(q);
   } catch (error) {
-    alert("英訳できなかったため、元の検索語で検索します。");
+    alert("英訳できなかったため、日本語の検索語を使用します。");
+  }
 
-    const url =
-      "https://pubmed.ncbi.nlm.nih.gov/?term=" +
-      encodeURIComponent(q);
+  const pubmedUrl =
+    "https://pubmed.ncbi.nlm.nih.gov/?term=" +
+    encodeURIComponent(english);
 
-    if (pubmedTab) {
-      pubmedTab.location.href = url;
-    } else {
-      window.location.href = url;
-    }
+  const jstageUrl =
+    "https://www.jstage.jst.go.jp/result/global/-char/ja?globalSearchKey=" +
+    encodeURIComponent(q);
+
+  const ciniiUrl =
+    "https://cir.nii.ac.jp/all?q=" +
+    encodeURIComponent(q);
+
+  const resultPage = `
+    <!DOCTYPE html>
+    <html lang="ja">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <title>検索結果一覧</title>
+      <style>
+        body {
+          font-family: sans-serif;
+          padding: 20px;
+          line-height: 1.7;
+          background: #f5f7fa;
+        }
+        h2 { color: #245b83; }
+        a {
+          display: block;
+          background: white;
+          padding: 16px;
+          margin: 12px 0;
+          border-radius: 10px;
+          color: #1769aa;
+          text-decoration: none;
+          font-weight: bold;
+          border: 1px solid #ddd;
+        }
+      </style>
+    </head>
+    <body>
+      <h2>論文検索結果</h2>
+      <p>検索語：${q.replace(/[&<>"']/g, "")}</p>
+      <p>PubMed英語検索語：${english.replace(/[&<>"']/g, "")}</p>
+      <a href="${pubmedUrl}" target="_blank">PubMed（海外論文）を開く</a>
+      <a href="${jstageUrl}" target="_blank">J-STAGE（国内論文）を開く</a>
+      <a href="${ciniiUrl}" target="_blank">CiNii Research（国内文献）を開く</a>
+    </body>
+    </html>
+  `;
+
+  const resultTab = window.open("", "_blank");
+
+  if (resultTab) {
+    resultTab.document.open();
+    resultTab.document.write(resultPage);
+    resultTab.document.close();
+  } else {
+    alert("新しいタブを開けませんでした。");
   }
 }
+
 
 // PMDA添付文書検索
 function searchPMDA(otc) {
