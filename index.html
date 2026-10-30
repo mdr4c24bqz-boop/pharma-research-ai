@@ -1,0 +1,175 @@
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#17365d">
+<title>薬学リサーチAI</title>
+<style>
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  background: #f3f6fa;
+  color: #253247;
+}
+header {
+  background: #17365d;
+  color: white;
+  padding: 25px 20px;
+}
+header h1 { margin: 0; font-size: 25px; }
+header p { margin: 8px 0 0; font-size: 13px; color: #d6e2f0; }
+main {
+  padding: 20px 15px;
+  max-width: 650px;
+  margin: auto;
+}
+.card {
+  background: white;
+  border-radius: 15px;
+  padding: 20px;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 8px #0000000c;
+}
+h2 { font-size: 18px; margin: 0 0 15px; }
+label { font-size: 14px; font-weight: bold; }
+input {
+  width: 100%;
+  padding: 15px;
+  border: 1px solid #ccd5e0;
+  border-radius: 9px;
+  font-size: 16px;
+  margin-top: 9px;
+}
+button {
+  width: 100%;
+  padding: 15px;
+  margin-top: 11px;
+  border: 0;
+  border-radius: 9px;
+  font-size: 15px;
+  font-weight: bold;
+  color: white;
+  background: #2466a5;
+}
+button:active { opacity: 0.75; }
+button.green { background: #24845d; }
+button.gray { background: #596779; }
+.description {
+  color: #687789;
+  font-size: 13px;
+  line-height: 1.6;
+}
+footer {
+  text-align: center;
+  color: #8491a1;
+  font-size: 12px;
+  padding: 20px;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>💊 薬学リサーチAI</h1>
+  <p>論文・医薬品情報をまとめて検索</p>
+</header>
+
+<main>
+
+<div class="card">
+  <h2>🔎 調べたい内容</h2>
+  <label for="keyword">検索キーワード・薬剤名</label>
+  <input id="keyword" type="search"
+    placeholder="例：エソメプラゾール 骨折リスク">
+  <p class="description">
+    調べたい病気、薬剤名、副作用、相互作用などを入力してください。
+  </p>
+  <button onclick="searchPubmed()">海外論文を検索（PubMed）</button>
+  <button class="green" onclick="searchJstage()">国内論文を検索（J-STAGE）</button>
+  <button class="gray" onclick="searchBoth()">国内・海外論文を同時検索</button>
+</div>
+
+<div class="card">
+  <h2>💊 添付文書検索</h2>
+  <label for="drug">医薬品名</label>
+  <input id="drug" type="search"
+    placeholder="例：ロキソニン">
+  <button onclick="searchPMDA(false)">
+    医療用医薬品の添付文書
+  </button>
+  <button class="green" onclick="searchPMDA(true)">
+    OTC医薬品の添付文書
+  </button>
+  <p class="description">
+    PMDAの公式検索ページを開きます。
+    検索ページ内で医薬品名を入力してください。
+  </p>
+</div>
+
+<div class="card">
+  <h2>📚 情報検索について</h2>
+  <p class="description">
+    現在は公式データベースへの検索を行う試作版です。
+    AIによる論文の自動要約、複数文献の比較、
+    添付文書の自動抽出機能は今後追加します。
+  </p>
+</div>
+
+</main>
+
+<footer>
+  Pharma Research AI v1.0
+</footer>
+
+<script>
+function getKeyword(id) {
+  const value = document.getElementById(id).value.trim();
+  if (!value) {
+    alert("検索するキーワードを入力してください。");
+    return null;
+  }
+  return value;
+}
+
+function searchPubmed() {
+  const q = getKeyword("keyword");
+  if (!q) return;
+  window.open(
+    "https://pubmed.ncbi.nlm.nih.gov/?term=" +
+    encodeURIComponent(q), "_blank");
+}
+
+function searchJstage() {
+  const q = getKeyword("keyword");
+  if (!q) return;
+  window.open(
+    "https://www.jstage.jst.go.jp/result/global/-char/ja?globalSearchKey=" +
+    encodeURIComponent(q), "_blank");
+}
+
+function searchBoth() {
+  const q = getKeyword("keyword");
+  if (!q) return;
+  searchUrl("https://pubmed.ncbi.nlm.nih.gov/?term=", q);
+  searchUrl("https://www.jstage.jst.go.jp/result/global/-char/ja?globalSearchKey=", q);
+}
+
+function searchUrl(base, q) {
+  window.open(base + encodeURIComponent(q), "_blank");
+}
+
+function searchPMDA(otc) {
+  const q = getKeyword("drug");
+  if (!q) return;
+  const url = otc
+    ? "https://www.pmda.go.jp/PmdaSearch/otcSearch/"
+    : "https://www.pmda.go.jp/PmdaSearch/iyakuSearch/";
+  window.open(url, "_blank");
+}
+</script>
+
+</body>
+</html>
