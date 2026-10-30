@@ -2,309 +2,476 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#17365d">
-<title>薬学リサーチAI</title>
-<style>
-* { box-sizing: border-box; }
-body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-  background: #f3f6fa;
-  color: #253247;
-}
-header {
-  background: #17365d;
-  color: white;
-  padding: 25px 20px;
-}
-header h1 { margin: 0; font-size: 25px; }
-header p { margin: 8px 0 0; font-size: 13px; color: #d6e2f0; }
-main {
-  padding: 20px 15px;
-  max-width: 650px;
-  margin: auto;
-}
-.card {
-  background: white;
-  border-radius: 15px;
-  padding: 20px;
-  margin-bottom: 16px;
-  box-shadow: 0 2px 8px #0000000c;
-}
-h2 { font-size: 18px; margin: 0 0 15px; }
-label { font-size: 14px; font-weight: bold; }
-input {
-  width: 100%;
-  padding: 15px;
-  border: 1px solid #ccd5e0;
-  border-radius: 9px;
-  font-size: 16px;
-  margin-top: 9px;
-}
-button {
-  width: 100%;
-  padding: 15px;
-  margin-top: 11px;
-  border: 0;
-  border-radius: 9px;
-  font-size: 15px;
-  font-weight: bold;
-  color: white;
-  background: #2466a5;
-}
-button:active { opacity: 0.75; }
-button.green { background: #24845d; }
-button.gray { background: #596779; }
-.description {
-  color: #687789;
-  font-size: 13px;
-  line-height: 1.6;
-}
-footer {
-  text-align: center;
-  color: #8491a1;
-  font-size: 12px;
-  padding: 20px;
-}
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#245b83">
+  <title>薬学リサーチAI</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue",
+        "Noto Sans JP", sans-serif;
+      margin: 0;
+      padding: 20px;
+      background: #f3f6f9;
+      color: #263238;
+    }
+
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      color: #245b83;
+      font-size: 25px;
+      text-align: center;
+      margin: 15px 0 25px;
+    }
+
+    h2 {
+      font-size: 18px;
+      color: #245b83;
+      margin-top: 0;
+    }
+
+    .section {
+      background: white;
+      padding: 18px;
+      margin-bottom: 18px;
+      border-radius: 12px;
+      box-shadow: 0 2px 7px rgba(0,0,0,0.06);
+    }
+
+    label {
+      display: block;
+      font-weight: bold;
+      margin-bottom: 8px;
+    }
+
+    input {
+      width: 100%;
+      padding: 13px;
+      border: 1px solid #cbd5df;
+      border-radius: 8px;
+      font-size: 16px;
+      margin-bottom: 12px;
+    }
+
+    button {
+      width: 100%;
+      padding: 14px;
+      margin: 5px 0;
+      border: none;
+      border-radius: 8px;
+      background: #245b83;
+      color: white;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    button.secondary {
+      background: #477b9f;
+    }
+
+    button.green {
+      background: #287b65;
+    }
+
+    button.gray {
+      background: #687782;
+    }
+
+    .description {
+      font-size: 13px;
+      color: #65727c;
+      line-height: 1.6;
+      margin-top: 8px;
+    }
+
+    .status {
+      font-size: 14px;
+      color: #287b65;
+      margin-top: 10px;
+      min-height: 20px;
+    }
+
+    .footer {
+      text-align: center;
+      font-size: 12px;
+      color: #87939c;
+      margin: 25px 0;
+    }
+  </style>
 </head>
+
 <body>
+  <div class="container">
 
-<header>
-  <h1>💊 薬学リサーチAI</h1>
-  <p>論文・医薬品情報をまとめて検索</p>
-</header>
+    <h1>薬学リサーチAI</h1>
 
-<main>
+    <div class="section">
+      <h2>論文・文献検索</h2>
 
-<div class="card">
-  <h2>🔎 調べたい内容</h2>
-  <label for="keyword">検索キーワード・薬剤名</label>
-  <input id="keyword" type="search"
-    placeholder="例：エソメプラゾール 骨折リスク">
-  <p class="description">
-    調べたい病気、薬剤名、副作用、相互作用などを入力してください。
-  </p>
-  <button onclick="searchPubmed()">海外論文を検索（PubMed）</button>
-  <button class="green" onclick="searchJstage()">国内論文を検索（J-STAGE）</button>
-  <button class="gray" onclick="searchBoth()">国内・海外論文を同時検索</button>
-</div>
+      <label for="keyword">調べたい内容</label>
 
-<div class="card">
-  <h2>💊 添付文書検索</h2>
-  <label for="drug">医薬品名</label>
-  <input id="drug" type="search"
-    placeholder="例：ロキソニン">
-  <button onclick="searchPMDA(false)">
-    医療用医薬品の添付文書
-  </button>
-  <button class="green" onclick="searchPMDA(true)">
-    OTC医薬品の添付文書
-  </button>
-  <p class="description">
-    PMDAの公式検索ページを開きます。
-    検索ページ内で医薬品名を入力してください。
-  </p>
-</div>
+      <input
+        type="text"
+        id="keyword"
+        placeholder="例：PPI長期投与と骨折リスク"
+      >
 
-<div class="card">
-  <h2>📚 情報検索について</h2>
-  <p class="description">
-    現在は公式データベースへの検索を行う試作版です。
-    AIによる論文の自動要約、複数文献の比較、
-    添付文書の自動抽出機能は今後追加します。
-  </p>
-</div>
+      <button onclick="searchPubmed()">
+        PubMedで検索（英語）
+      </button>
 
-</main>
+      <button class="secondary" onclick="searchJstage()">
+        J-STAGEで検索（日本語）
+      </button>
 
-<footer>
-  Pharma Research AI v1.0
-</footer>
+      <button class="green" onclick="searchBoth()">
+        国内・海外を同時検索
+      </button>
 
+      <div id="status" class="status"></div>
 
-<script>
-function getKeyword(id) {
-  const value = document.getElementById(id).value.trim();
-  if (!value) {
-    alert("検索するキーワードを入力してください。");
-    return null;
-  }
-  return value;
-}
+      <p class="description">
+        日本語で入力できます。PubMedでは検索語を英語に翻訳して検索します。
+        同時検索ではPubMed・J-STAGE・CiNii Researchへのリンクをまとめて表示します。
+      </p>
+    </div>
 
-// 日本語から英語に翻訳
-async function translateToEnglish(text) {
-  const params = new URLSearchParams({
-    q: text,
-    langpair: "ja|en"
-  });
+    <div class="section">
+      <h2>添付文書検索</h2>
 
-  const response = await fetch(
-    "https://api.mymemory.translated.net/get?" + params
-  );
+      <label for="drug">医薬品名</label>
 
-  if (!response.ok) {
-    throw new Error("翻訳サービスに接続できません");
-  }
+      <input
+        type="text"
+        id="drug"
+        placeholder="例：アムロジピン"
+      >
 
-  const data = await response.json();
+      <button onclick="searchPMDA(false)">
+        医療用医薬品の添付文書
+      </button>
 
-  if (Number(data.responseStatus) !== 200) {
-    throw new Error("翻訳に失敗しました");
-  }
+      <button class="secondary" onclick="searchPMDA(true)">
+        OTC医薬品の添付文書
+      </button>
 
-  const translated =
-    data.responseData.translatedText;
+      <p class="description">
+        PMDAの公式検索ページを開きます。
+        検索ページ内で医薬品名を入力してください。
+      </p>
+    </div>
 
-  if (!translated || translated === text) {
-    throw new Error("英語に変換できませんでした");
-  }
+    <div class="footer">
+      薬学リサーチAI
+    </div>
 
-  return translated;
-}
+  </div>
 
-// PubMed検索：日本語を英語に変換
-async function searchPubmed() {
-  const q = getKeyword("keyword");
-  if (!q) return;
+  <script>
 
-  const tab = window.open("about:blank", "_blank");
+    // 入力された検索語を取得
+    function getKeyword(id) {
+      const value = document.getElementById(id).value.trim();
 
-  try {
-    const english = await translateToEnglish(q);
+      if (!value) {
+        alert("検索ワードを入力してください。");
+        return "";
+      }
 
-    alert("英語に変換しました。\n\n" + english);
-
-    const url =
-      "https://pubmed.ncbi.nlm.nih.gov/?term=" +
-      encodeURIComponent(english);
-
-    if (tab) {
-      tab.location.href = url;
-    } else {
-      window.location.href = url;
+      return value;
     }
 
-  } catch (error) {
-    alert("翻訳できなかったため、元の検索語で検索します。");
 
-    const url =
-      "https://pubmed.ncbi.nlm.nih.gov/?term=" +
-      encodeURIComponent(q);
+    // 日本語を英語に翻訳
+    async function translateToEnglish(text) {
 
-    if (tab) {
-      tab.location.href = url;
-    } else {
-      window.location.href = url;
+      const apiUrl =
+        "https://api.mymemory.translated.net/get?q=" +
+        encodeURIComponent(text) +
+        "&langpair=ja|en";
+
+      const response = await fetch(apiUrl);
+
+      if (!response.ok) {
+        throw new Error("翻訳に失敗しました");
+      }
+
+      const data = await response.json();
+
+      if (
+        !data.responseData ||
+        !data.responseData.translatedText
+      ) {
+        throw new Error("翻訳結果がありません");
+      }
+
+      return data.responseData.translatedText;
     }
-  }
-}
-
-// J-STAGE：日本語のまま検索
-function searchJstage() {
-  const q = getKeyword("keyword");
-  if (!q) return;
-
-  window.open(
-    "https://www.jstage.jst.go.jp/result/global/-char/ja?globalSearchKey=" +
-    encodeURIComponent(q),
-    "_blank"
-  );
-}
-
-// 国内・海外を同時検索
-
-async function searchBoth() {
-  const q = getKeyword("keyword");
-  if (!q) return;
-
-  let english = q;
-
-  try {
-    english = await translateToEnglish(q);
-  } catch (error) {
-    alert("英訳できなかったため、日本語の検索語を使用します。");
-  }
-
-  const pubmedUrl =
-    "https://pubmed.ncbi.nlm.nih.gov/?term=" +
-    encodeURIComponent(english);
-
-  const jstageUrl =
-    "https://www.jstage.jst.go.jp/result/global/-char/ja?globalSearchKey=" +
-    encodeURIComponent(q);
-
-  const ciniiUrl =
-    "https://cir.nii.ac.jp/all?q=" +
-    encodeURIComponent(q);
-
-  const resultPage = `
-    <!DOCTYPE html>
-    <html lang="ja">
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1">
-      <title>検索結果一覧</title>
-      <style>
-        body {
-          font-family: sans-serif;
-          padding: 20px;
-          line-height: 1.7;
-          background: #f5f7fa;
-        }
-        h2 { color: #245b83; }
-        a {
-          display: block;
-          background: white;
-          padding: 16px;
-          margin: 12px 0;
-          border-radius: 10px;
-          color: #1769aa;
-          text-decoration: none;
-          font-weight: bold;
-          border: 1px solid #ddd;
-        }
-      </style>
-    </head>
-    <body>
-      <h2>論文検索結果</h2>
-      <p>検索語：${q.replace(/[&<>"']/g, "")}</p>
-      <p>PubMed英語検索語：${english.replace(/[&<>"']/g, "")}</p>
-      <a href="${pubmedUrl}" target="_blank">PubMed（海外論文）を開く</a>
-      <a href="${jstageUrl}" target="_blank">J-STAGE（国内論文）を開く</a>
-      <a href="${ciniiUrl}" target="_blank">CiNii Research（国内文献）を開く</a>
-    </body>
-    </html>
-  `;
-
-  const resultTab = window.open("", "_blank");
-
-  if (resultTab) {
-    resultTab.document.open();
-    resultTab.document.write(resultPage);
-    resultTab.document.close();
-  } else {
-    alert("新しいタブを開けませんでした。");
-  }
-}
 
 
-// PMDA添付文書検索
-function searchPMDA(otc) {
-  const q = getKeyword("drug");
-  if (!q) return;
+    // PubMed検索
+    async function searchPubmed() {
 
-  const url = otc
-    ? "https://www.pmda.go.jp/PmdaSearch/otcSearch/"
-    : "https://www.pmda.go.jp/PmdaSearch/iyakuSearch/";
+      const q = getKeyword("keyword");
+      if (!q) return;
 
-  window.open(url, "_blank");
-}
-</script>
+      // 翻訳前にタブを開く
+      const tab = window.open("about:blank", "_blank");
 
+      if (!tab) {
+        alert("新しいタブを開けませんでした。Safariの設定を確認してください。");
+        return;
+      }
+
+      document.getElementById("status").textContent =
+        "英語に翻訳しています...";
+
+      try {
+
+        const english = await translateToEnglish(q);
+
+        const url =
+          "https://pubmed.ncbi.nlm.nih.gov/?term=" +
+          encodeURIComponent(english);
+
+        tab.location.href = url;
+
+        document.getElementById("status").textContent =
+          "PubMedを検索しました。";
+
+      } catch (error) {
+
+        const url =
+          "https://pubmed.ncbi.nlm.nih.gov/?term=" +
+          encodeURIComponent(q);
+
+        tab.location.href = url;
+
+        document.getElementById("status").textContent =
+          "翻訳できなかったため、日本語で検索しました。";
+      }
+    }
+
+
+    // J-STAGE検索
+    function searchJstage() {
+
+      const q = getKeyword("keyword");
+      if (!q) return;
+
+      const url =
+        "https://www.jstage.jst.go.jp/result/global/-char/ja?globalSearchKey=" +
+        encodeURIComponent(q);
+
+      window.open(url, "_blank");
+    }
+
+
+    // 検索結果ページ用の文字列処理
+    function escapeHTML(text) {
+
+      return String(text).replace(/[&<>"']/g, function(char) {
+        const entities = {
+          "&": "&amp;",
+          "<": "&lt;",
+          ">": "&gt;",
+          '"': "&quot;",
+          "'": "&#39;"
+        };
+
+        return entities[char];
+      });
+    }
+
+
+    // 国内・海外を同時検索
+    async function searchBoth() {
+
+      const q = getKeyword("keyword");
+      if (!q) return;
+
+      // ユーザー操作の直後にタブを開いておく
+      const resultTab = window.open("about:blank", "_blank");
+
+      if (!resultTab) {
+        alert("新しいタブを開けませんでした。");
+        return;
+      }
+
+      resultTab.document.open();
+      resultTab.document.write(`
+        <!DOCTYPE html>
+        <html lang="ja">
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <title>論文検索結果</title>
+        </head>
+        <body style="font-family:sans-serif;padding:20px;">
+          <h2>論文検索結果</h2>
+          <p>検索語：${escapeHTML(q)}</p>
+          <p>英語への翻訳中です。しばらくお待ちください。</p>
+        </body>
+        </html>
+      `);
+      resultTab.document.close();
+
+      let english = q;
+      let translationMessage = "";
+
+      try {
+        english = await translateToEnglish(q);
+      } catch (error) {
+        translationMessage =
+          "英訳できなかったため、PubMedも日本語で検索します。";
+      }
+
+      const pubmedUrl =
+        "https://pubmed.ncbi.nlm.nih.gov/?term=" +
+        encodeURIComponent(english);
+
+      const jstageUrl =
+        "https://www.jstage.jst.go.jp/result/global/-char/ja?globalSearchKey=" +
+        encodeURIComponent(q);
+
+      const ciniiUrl =
+        "https://cir.nii.ac.jp/all?q=" +
+        encodeURIComponent(q);
+
+      const safeKeyword = escapeHTML(q);
+      const safeEnglish = escapeHTML(english);
+      const safeMessage = escapeHTML(translationMessage);
+
+      const resultPage = `
+        <!DOCTYPE html>
+        <html lang="ja">
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <title>論文検索結果</title>
+
+          <style>
+            body {
+              font-family: sans-serif;
+              padding: 20px;
+              background: #f3f6f9;
+              color: #263238;
+              line-height: 1.6;
+            }
+
+            h2 {
+              color: #245b83;
+            }
+
+            .card {
+              background: white;
+              padding: 18px;
+              margin: 14px 0;
+              border-radius: 10px;
+              border: 1px solid #ddd;
+            }
+
+            a {
+              display: block;
+              background: #245b83;
+              color: white;
+              padding: 15px;
+              margin-top: 10px;
+              border-radius: 8px;
+              text-decoration: none;
+              text-align: center;
+              font-weight: bold;
+            }
+
+            .jstage {
+              background: #477b9f;
+            }
+
+            .cinii {
+              background: #287b65;
+            }
+
+            .note {
+              color: #687782;
+              font-size: 13px;
+            }
+          </style>
+        </head>
+
+        <body>
+
+          <h2>論文検索結果</h2>
+
+          <div class="card">
+            <strong>日本語の検索ワード</strong>
+            <p>${safeKeyword}</p>
+
+            <strong>PubMed用の英語検索ワード</strong>
+            <p>${safeEnglish}</p>
+
+            <p class="note">${safeMessage}</p>
+          </div>
+
+          <div class="card">
+            <strong>海外論文</strong>
+            <a href="${pubmedUrl}" target="_blank">
+              PubMedで検索する
+            </a>
+          </div>
+
+          <div class="card">
+            <strong>国内論文</strong>
+            <a class="jstage" href="${jstageUrl}" target="_blank">
+              J-STAGEで検索する
+            </a>
+
+            <a class="cinii" href="${ciniiUrl}" target="_blank">
+              CiNii Researchで検索する
+            </a>
+          </div>
+
+          <p class="note">
+            各ボタンをタップすると、それぞれの検索結果が開きます。
+          </p>
+
+        </body>
+        </html>
+      `;
+
+      resultTab.document.open();
+      resultTab.document.write(resultPage);
+      resultTab.document.close();
+    }
+
+
+    // PMDA検索
+    function searchPMDA(otc) {
+
+      const q = getKeyword("drug");
+      if (!q) return;
+
+      let url;
+
+      if (otc) {
+        url = "https://www.pmda.go.jp/PmdaSearch/otcSearch/";
+      } else {
+        url = "https://www.pmda.go.jp/PmdaSearch/iyakuSearch/";
+      }
+
+      window.open(url, "_blank");
+    }
+
+  </script>
 
 </body>
 </html>
