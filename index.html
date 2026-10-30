@@ -216,17 +216,27 @@ function searchJstage() {
 }
 
 // 国内・海外を同時検索
+  
 async function searchBoth() {
   const q = getKeyword("keyword");
   if (!q) return;
 
-  const pubmedTab = window.open("about:blank", "_blank");
-
+  // J-STAGEで日本語検索
   window.open(
     "https://www.jstage.jst.go.jp/result/global/-char/ja?globalSearchKey=" +
     encodeURIComponent(q),
     "_blank"
   );
+
+  // CiNii Researchで日本語検索
+  window.open(
+    "https://cir.nii.ac.jp/all?q=" +
+    encodeURIComponent(q),
+    "_blank"
+  );
+
+  // PubMedで英語検索
+  const pubmedTab = window.open("about:blank", "_blank");
 
   try {
     const english = await translateToEnglish(q);
