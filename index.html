@@ -124,6 +124,7 @@ footer {
   Pharma Research AI v1.0
 </footer>
 
+
 <script>
 function getKeyword(id) {
   const value = document.getElementById(id).value.trim();
@@ -134,42 +135,140 @@ function getKeyword(id) {
   return value;
 }
 
-function searchPubmed() {
-  const q = getKeyword("keyword");
-  if (!q) return;
-  window.open(
-    "https://pubmed.ncbi.nlm.nih.gov/?term=" +
-    encodeURIComponent(q), "_blank");
+// 日本語から英語に翻訳
+async function translateToEnglish(text) {
+  const params = new URLSearchParams({
+    q: text,
+    langpair: "ja|en"
+  });
+
+  const response = await fetch(
+    "https://api.mymemory.translated.net/get?" + params
+  );
+
+  if (!response.ok) {
+    throw new Error("翻訳サービスに接続できません");
+  }
+
+  const data = await response.json();
+
+  if (Number(data.responseStatus) !== 200) {
+    throw new Error("翻訳に失敗しました");
+  }
+
+  const translated =
+    data.responseData.translatedText;
+
+  if (!translated || translated === text) {
+    throw new Error("英語に変換できませんでした");
+  }
+
+  return translated;
 }
 
+// PubMed検索：日本語を英語に変換
+async function searchPubmed() {
+  const q = getKeyword("keyword");
+  if (!q) return;
+
+  const tab = window.open("about:blank", "_blank");
+
+  try {
+    const english = await translateToEnglish(q);
+
+    alert("英語に変換しました。\n\n" + english);
+
+    const url =
+      "https://pubmed.ncbi.nlm.nih.gov/?term=" +
+      encodeURIComponent(english);
+
+    if (tab) {
+      tab.location.href = url;
+    } else {
+      window.location.href = url;
+    }
+
+  } catch (error) {
+    alert("翻訳できなかったため、元の検索語で検索します。");
+
+    const url =
+      "https://pubmed.ncbi.nlm.nih.gov/?term=" +
+      encodeURIComponent(q);
+
+    if (tab) {
+      tab.location.href = url;
+    } else {
+      window.location.href = url;
+    }
+  }
+}
+
+// J-STAGE：日本語のまま検索
 function searchJstage() {
   const q = getKeyword("keyword");
   if (!q) return;
+
   window.open(
     "https://www.jstage.jst.go.jp/result/global/-char/ja?globalSearchKey=" +
-    encodeURIComponent(q), "_blank");
+    encodeURIComponent(q),
+    "_blank"
+  );
 }
 
-function searchBoth() {
+// 国内・海外を同時検索
+async function searchBoth() {
   const q = getKeyword("keyword");
   if (!q) return;
-  searchUrl("https://pubmed.ncbi.nlm.nih.gov/?term=", q);
-  searchUrl("https://www.jstage.jst.go.jp/result/global/-char/ja?globalSearchKey=", q);
+
+  const pubmedTab = window.open("about:blank", "_blank");
+
+  window.open(
+    "https://www.jstage.jst.go.jp/result/global/-char/ja?globalSearchKey=" +
+    encodeURIComponent(q),
+    "_blank"
+  );
+
+  try {
+    const english = await translateToEnglish(q);
+
+    const url =
+      "https://pubmed.ncbi.nlm.nih.gov/?term=" +
+      encodeURIComponent(english);
+
+    if (pubmedTab) {
+      pubmedTab.location.href = url;
+    } else {
+      window.location.href = url;
+    }
+
+  } catch (error) {
+    alert("英訳できなかったため、元の検索語で検索します。");
+
+    const url =
+      "https://pubmed.ncbi.nlm.nih.gov/?term=" +
+      encodeURIComponent(q);
+
+    if (pubmedTab) {
+      pubmedTab.location.href = url;
+    } else {
+      window.location.href = url;
+    }
+  }
 }
 
-function searchUrl(base, q) {
-  window.open(base + encodeURIComponent(q), "_blank");
-}
-
+// PMDA添付文書検索
 function searchPMDA(otc) {
   const q = getKeyword("drug");
   if (!q) return;
+
   const url = otc
     ? "https://www.pmda.go.jp/PmdaSearch/otcSearch/"
     : "https://www.pmda.go.jp/PmdaSearch/iyakuSearch/";
+
   window.open(url, "_blank");
 }
 </script>
+
 
 </body>
 </html>
