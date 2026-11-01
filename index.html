@@ -564,5 +564,94 @@ function searchPMDA(otc) {
 }
 
 </script>
+<script>
+// Geminiによる論文分析機能
+(function() {
+  const WORKER_URL =
+    "https://pharma-ai-api.zv2kbz46nh.workers.dev";
+
+  const results = document.getElementById("articleResults");
+
+  const observer = new MutationObserver(() => {
+    const cards = results.querySelectorAll(".article");
+
+    cards.forEach(card => {
+      if (card.querySelector(".ai-analysis-button")) return;
+
+      const originalTexts = card.querySelectorAll("p.original");
+
+      if (originalTexts.length < 2) return;
+
+      const title = originalTexts[0].textContent
+        .replace("タイトル原文：", "").trim();
+
+      const abstract = originalTexts[1].textContent.trim();
+
+      const button = document.createElement("button");
+      button.textContent = "Geminiで論文をAI分析";
+      button.className = "green ai-analysis-button";
+
+      const output = document.createElement("div");
+      output.style.whiteSpace = "pre-wrap";
+      output.style.lineHeight = "1.8";
+      output.style.marginTop = "12px";
+      output.style.padding = "12px";
+      output.style.background = "#f3f6f9";
+      output.style.borderRadius = "8px";
+      output.style.display = "none";
+
+      button.addEventListener("click", async () => {
+        if (!abstract || abstract === "要旨は登録されていません。") {
+          output.textContent = "Abstractがないため分析できません。";
+          output.style.display = "block";
+          return;
+        }
+
+        button.disabled = true;
+        button.textContent = "AI分析中...";
+        output.textContent = "Geminiが論文を分析しています...";
+        output.style.display = "block";
+
+        try {
+          const response = await fetch(WORKER_URL, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              title: title,
+              abstract: abstract
+            })
+          });
+
+          const data = await response.json();
+
+          if (!response.ok) {
+            throw new Error(data.error || "通信エラー");
+          }
+
+          output.textContent =
+            data.result || "分析結果を取得できませんでした。";
+
+        } catch (error) {
+          output.textContent =
+            "AI分析に失敗しました。\n" + error.message;
+        } finally {
+          button.disabled = false;
+          button.textContent = "Geminiで論文をAI分析";
+        }
+      });
+
+      card.appendChild(button);
+      card.appendChild(output);
+    });
+  });
+
+  observer.observe(results, {
+    childList: true,
+    subtree: true
+  });
+})();
+</script>
 </body>
 </html>
