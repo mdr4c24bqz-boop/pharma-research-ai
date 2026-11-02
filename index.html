@@ -216,7 +216,7 @@ async function searchPubmedArticles() {
     const english = await translateToEnglish(q);
     const searchUrl = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi" +
       "?db=pubmed&term=" + encodeURIComponent(english) +
-      "&retmax=5&retmode=json&sort=relevance";
+      "&retmax=20&retmode=json&sort=relevance";
     const searchResponse = await fetch(searchUrl);
     if (!searchResponse.ok) throw new Error("PubMed検索に失敗しました");
     const searchData = await searchResponse.json();
