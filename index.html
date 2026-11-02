@@ -564,8 +564,8 @@ function searchPMDA(otc) {
 }
 
 </script>
+
 <script>
-// Geminiによる論文分析機能
 (function() {
   const WORKER_URL =
     "https://pharma-ai-api.zv2kbz46nh.workers.dev";
@@ -579,7 +579,6 @@ function searchPMDA(otc) {
       if (card.querySelector(".ai-analysis-button")) return;
 
       const originalTexts = card.querySelectorAll("p.original");
-
       if (originalTexts.length < 2) return;
 
       const title = originalTexts[0].textContent
@@ -609,7 +608,7 @@ function searchPMDA(otc) {
 
         button.disabled = true;
         button.textContent = "AI分析中...";
-        output.textContent = "Geminiが論文を分析しています...";
+        output.textContent = "Geminiが分析を開始しました...\n";
         output.style.display = "block";
 
         try {
@@ -624,18 +623,71 @@ function searchPMDA(otc) {
             })
           });
 
-          const data = await response.json();
-
           if (!response.ok) {
-            throw new Error(data.error || "通信エラー");
+            const errorText = await response.text();
+            let message = errorText;
+
+            try {
+              const errorData = JSON.parse(errorText);
+              message = errorData.error || errorText;
+            } catch (_) {}
+
+            throw new Error(message);
           }
 
-          output.textContent =
-            data.result || "分析結果を取得できませんでした。";
+          if (!response.body) {
+            throw new Error("ストリーミング応答がありません。");
+          }
+
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder("utf-8");
+          let buffer = "";
+          let received = false;
+
+          while (true) {
+            const { value, done } = await reader.read();
+
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+
+            const events = buffer.split("\n\n");
+            buffer = events.pop() || "";
+
+            for (const event of events) {
+              const lines = event.split("\n");
+
+              for (const line of lines) {
+                if (!line.startsWith("data:")) continue;
+
+                const dataText = line.slice(5).trim();
+                if (!dataText || dataText === "[DONE]") continue;
+
+                try {
+                  const data = JSON.parse(dataText);
+                  const parts =
+                    data.candidates?.[0]?.content?.parts || [];
+
+                  for (const part of parts) {
+                    if (part.text) {
+                      output.textContent += part.text;
+                      received = true;
+                    }
+                  }
+                } catch (_) {}
+              }
+            }
+          }
+
+          if (!received) {
+            throw new Error("分析結果を受信できませんでした。");
+          }
+
+          output.textContent += "\n\n【分析完了】";
 
         } catch (error) {
-          output.textContent =
-            "AI分析に失敗しました。\n" + error.message;
+          output.textContent +=
+            "\n\n【エラー】" + error.message;
         } finally {
           button.disabled = false;
           button.textContent = "Geminiで論文をAI分析";
