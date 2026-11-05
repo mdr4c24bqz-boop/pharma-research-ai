@@ -41,7 +41,7 @@
 </section>
 <section class="section"><h2>検索・翻訳の履歴</h2><p class="description">この端末で開始したジョブのIDを保存しています。再訪時に結果を読み込めます。</p><div id="searchHistory"></div></section>
 <section class="section"><h2>バックグラウンド分析の履歴</h2><p class="description">分析を開始すると、画面を閉じてもCloudflare側で処理を継続します。再訪時に保存したジョブIDから結果を再確認できます（この端末のブラウザに保存）。</p><div id="jobHistory"></div></section>
-<div class="footer">薬学リサーチAI　｜　医学的判断には必ず原著論文を確認してください。Europe PMC経由の検索結果の並び順はPubMed公式と異なる場合があります。</div>
+<div class="footer">薬学リサーチAI　｜　医学的判断には必ず原著論文を確認してください。翻訳にはGeminiとMyMemoryを使用し、失敗時は自動切替します。MyMemoryは外部翻訳サービスです。患者情報・機密情報は入力しないでください。Europe PMC経由の検索結果の並び順はPubMed公式と異なる場合があります。</div>
 </div>
 <script>
 "use strict";
@@ -270,7 +270,8 @@ function applySnapshot(progress, id) {
       const error = paper[field + "Error"] || paper.translationError || "";
       const shown = s === "complete" ? value : s === "failed" ? "取得できませんでした（" + error + "）" :
         s === "running" ? "翻訳中" : s === "retrying" ? "混雑のため再試行待ち" : "順番待ち";
-      node.textContent = label + "：" + shown;
+      const provider = s === "complete" && paper[field + "Provider"] ? "（" + paper[field + "Provider"] + "）" : "";
+      node.textContent = label + provider + "：" + shown;
     }
     c.retry.style.display = ["title", "abstract"].some(f => fieldStatus(paper, f) === "failed") ? "block" : "none";
   }
