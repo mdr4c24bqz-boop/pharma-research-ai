@@ -23,7 +23,7 @@
   <button class="gray" id="readButton" onclick="searchPubmedArticles()">PubMedの論文を日本語で読む</button>
   <div id="status" class="status" aria-live="polite"></div>
   <div id="searchLinks" class="result-links"></div>
-  <p class="description">PubMedの原文を先に表示し、タイトルとAbstractの日本語訳を後から順次追加します。AI翻訳が失敗しても原文は残ります。</p>
+  <p class="description">PubMed収録論文の原文を先に表示し、日本語訳を後から追加します。PubMed API障害時はEurope PMC経由で取得を試みます。</p>
 </section>
 <section class="section">
   <h2>論文検索結果</h2>
@@ -31,7 +31,7 @@
   <div id="articleResults"><p class="description">「PubMedの論文を日本語で読む」を押すと、ここに結果が表示されます。</p></div>
 </section>
 <section class="section"><h2>バックグラウンド分析の履歴</h2><p class="description">分析を開始すると、画面を閉じてもCloudflare側で処理を継続します。再訪時に保存したジョブIDから結果を再確認できます（この端末のブラウザに保存）。</p><div id="jobHistory"></div></section>
-<div class="footer">薬学リサーチAI　｜　医学的判断には必ず原著論文を確認してください。</div>
+<div class="footer">薬学リサーチAI　｜　医学的判断には必ず原著論文を確認してください。Europe PMC経由の検索結果の並び順はPubMed公式と異なる場合があります。</div>
 </div>
 <script>
 "use strict";
@@ -53,7 +53,7 @@ async function apiRequest(path,body,limit=65000){
  if(!res.ok)throw new Error(data.error||"HTTP "+res.status);
  return data;
 }
-async function translateToEnglish(q){const r=await apiRequest("/",{mode:"translate",direction:"ja-en",text:q},28000);return r.translatedText.trim()}
+async function translateToEnglish(q){if(!/[\u3040-\u30ff\u3400-\u9fff]/.test(q))return q;const r=await apiRequest("/",{mode:"translate",direction:"ja-en",text:q},28000);return r.translatedText.trim()}
 async function searchPubmed(){
  const q=getKeyword();if(!q)return;const links=elem("searchLinks");links.innerHTML="";
  setStatus("検索語を英語に変換しています…");let term=q;
@@ -78,21 +78,41 @@ function createCard(paper,index){
  const jaTitle=createText("p","タイトル日本語訳：翻訳待ち","translated");card.appendChild(jaTitle);
  card.appendChild(createText("strong","Abstract（要旨）"));card.appendChild(createText("p",abstract||"要旨は登録されていません。","original"));
  const jaAbs=createText("p",abstract?"Abstract日本語訳：翻訳待ち":"要旨なし","translated");card.appendChild(jaAbs);
+ const retryTranslation=document.createElement("button");retryTranslation.textContent="この論文の翻訳を再試行";retryTranslation.className="secondary";retryTranslation.style.display="none";card.appendChild(retryTranslation);
  card.appendChild(createText("p","PMID："+(pmid||"不明"),"tiny"));
  if(pmid)addLink(card,"PubMedで原文を確認する","https://pubmed.ncbi.nlm.nih.gov/"+pmid+"/");
  const analyze=document.createElement("button");analyze.textContent="この論文をAI分析";analyze.className="green";analyze.disabled=!abstract;card.appendChild(analyze);
  const jobStatus=createText("div","","status");const jobOutput=createText("div","","ai-output");jobOutput.style.display="none";card.append(jobStatus,jobOutput);
  analyze.addEventListener("click",()=>submitJob({title,abstract},"論文："+title,jobStatus,jobOutput,analyze));
- return {card,jaTitle,jaAbs,title,abstract};
+ const item={card,jaTitle,jaAbs,title,abstract,retryTranslation};
+ retryTranslation.addEventListener("click",()=>translateOne(item));
+ return item;
 }
 async function translateOne(paper){
- const {title,abstract,jaTitle,jaAbs}=paper;
- jaTitle.textContent="タイトル日本語訳：翻訳中…";if(abstract)jaAbs.textContent="Abstract日本語訳：翻訳中…";
+ const {title,abstract,jaTitle,jaAbs,retryTranslation}=paper;
+ retryTranslation.style.display="none";
+ jaTitle.textContent="タイトル日本語訳：翻訳中…";
+ if(abstract)jaAbs.textContent="Abstract日本語訳：翻訳中…";
  try{
-  const translated=await apiRequest("/",{mode:"translate-article",title,abstract},28000);
+  // Worker側で混雑時に最大1回再試行するため、十分な通信時間を設定。
+  const translated=await apiRequest("/",{mode:"translate-article",title,abstract},65000);
+  if(!translated.titleJa || (abstract && !translated.abstractJa))throw new Error("翻訳内容が空でした。");
   jaTitle.textContent="タイトル日本語訳："+translated.titleJa;
   jaAbs.textContent=abstract?"Abstract日本語訳："+translated.abstractJa:"要旨なし";
- }catch(e){jaTitle.textContent="タイトル日本語訳：取得できませんでした";if(abstract)jaAbs.textContent="Abstract日本語訳：取得できませんでした（"+e.message+"）。原文をご確認ください。"}
+  return true;
+ }catch(e){
+  jaTitle.textContent="タイトル日本語訳：取得できませんでした";
+  if(abstract)jaAbs.textContent="Abstract日本語訳：取得できませんでした（"+e.message+"）。原文をご確認ください。";
+  retryTranslation.style.display="block";
+  return false;
+ }
+}
+function normalizePaperText(value){
+ const txt=String(value||"");
+ if(!/<[^>]+>/.test(txt))return txt.trim();
+ const withBreaks=txt.replace(/<\/(?:p|h[1-6]|li|div)>/gi,"\n").replace(/<br\s*\/?>/gi,"\n");
+ const d=new DOMParser().parseFromString(withBreaks,"text/html");
+ return (d.body?.textContent||txt).replace(/\n\s*\n+/g,"\n\n").trim();
 }
 function getArticleInfo(doc){
  const entries=Array.from(doc.querySelectorAll("PubmedArticle"));
@@ -115,18 +135,31 @@ async function searchPubmedArticles(){
  if(id!==state.searchId)return;
  if(data.translationWarning)setStatus("英訳について："+data.translationWarning);
  if(!data.ids?.length){results.textContent="該当する論文はありませんでした。";setStatus("検索完了（0件）");return}
- const doc=new DOMParser().parseFromString(data.xml,"text/xml");
- if(doc.querySelector("parsererror")){setStatus("PubMedのXMLを読み取れませんでした。",true);return}
- const papers=getArticleInfo(doc);if(!papers.length){results.textContent="PubMedが論文を返しませんでした。";setStatus("取得0件",true);return}
- results.appendChild(createText("h3","PubMed検索結果（"+papers.length+"件）"));
- results.appendChild(createText("p","検索語："+data.query,"description"));
+ let papers;
+ if(Array.isArray(data.papers)){
+   papers=data.papers.map(p=>({pmid:String(p.pmid||""),title:normalizePaperText(p.title)||"タイトルなし",abstract:normalizePaperText(p.abstract)}));
+ }else{
+   const doc=new DOMParser().parseFromString(data.xml||"","text/xml");
+   if(doc.querySelector("parsererror")){setStatus("PubMedのXMLを読み取れませんでした。",true);return}
+   papers=getArticleInfo(doc);
+ }
+ if(!papers.length){results.textContent="論文が見つかりませんでした。";setStatus("取得0件",true);return}
+ results.appendChild(createText("h3","PubMed収録論文（"+papers.length+"件）"));
+ results.appendChild(createText("p","検索語："+data.query+" ／ 取得元："+(data.source||"NCBI PubMed"),"description"));
+ if(data.sourceWarning)results.appendChild(createText("p",data.sourceWarning,"description"));
+ if(data.translationWarning)results.appendChild(createText("p",data.translationWarning,"description"));
  const cards=papers.map((p,i)=>createCard(p,i));for(const item of cards)results.appendChild(item.card);
  setStatus(papers.length+"件の原文を表示しました。日本語訳を順次作成します（0/"+papers.length+"件）。");
- // 上限2本の並列翻訳。原文はすべて表示済みのため翻訳失敗の影響を受けません。
- let next=0,done=0;
- async function worker(){while(next<cards.length){const idx=next++;await translateOne(cards[idx]);done++;if(state.searchId===id)setStatus("PubMed原文："+papers.length+"件取得済み。翻訳："+done+"/"+papers.length+"件。")}}
- await Promise.all([worker(),worker()]);
- if(id===state.searchId)setStatus(papers.length+"件の原文を取得し、日本語訳の処理が終了しました（翻訳できない論文は原文を表示）。");
+ // Gemini APIが混雑している間は同時リクエストを避け、1件ずつ翻訳します。
+ let done=0,failed=0;
+ for(const item of cards){
+  if(id!==state.searchId)break;
+  const success=await translateOne(item);
+  done++;if(!success)failed++;
+  if(id===state.searchId)setStatus("PubMed原文："+papers.length+"件取得済み。翻訳完了："+done+"/"+papers.length+"件（失敗："+failed+"件）。");
+  if(done<cards.length)await new Promise(resolve=>setTimeout(resolve,800));
+ }
+ if(id===state.searchId)setStatus(papers.length+"件の原文を表示しました。翻訳成功："+(done-failed)+"件、失敗："+failed+"件。失敗した論文は「この論文の翻訳を再試行」から個別に再翻訳できます。",false);
 }
 function updateCompareCount(){const n=document.querySelectorAll(".compare-checkbox:checked").length;elem("compareCount").textContent="選択中："+n+"件（2〜5件）"}
 async function compareSelected(){
