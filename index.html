@@ -23,13 +23,15 @@
   <button class="gray" id="readButton" onclick="searchPubmedArticles()">PubMedの論文を日本語で読む</button>
   <div id="status" class="status" aria-live="polite"></div>
   <div id="searchLinks" class="result-links"></div>
-  <p class="description">PubMed収録論文の原文を先に表示し、日本語訳を後から追加します。PubMed API障害時はEurope PMC経由で取得を試みます。</p>
+  <p class="description">検索と翻訳はCloudflare Queueで処理します。画面を閉じても処理は続き、再度開いて結果を確認できます。</p>
+  <div id="searchJobInfo" class="soft" style="display:none"><strong>バックグラウンド検索の進捗</strong><div id="searchProgress" class="status"></div></div>
 </section>
 <section class="section">
   <h2>論文検索結果</h2>
   <div class="soft"><strong>論文比較（2〜5件）</strong><p class="description">Abstractがある論文のチェックボックスを2〜5件選択してください。</p><div id="compareCount" class="status">選択中：0件</div><button class="green" id="compareButton" onclick="compareSelected()">選択した論文を比較分析</button><div id="compareStatus" class="status"></div><div id="compareOutput" class="ai-output" style="display:none"></div></div>
   <div id="articleResults"><p class="description">「PubMedの論文を日本語で読む」を押すと、ここに結果が表示されます。</p></div>
 </section>
+<section class="section"><h2>検索・翻訳の履歴</h2><p class="description">この端末で開始したジョブのIDを保存しています。再訪時に結果を読み込めます。</p><div id="searchHistory"></div></section>
 <section class="section"><h2>バックグラウンド分析の履歴</h2><p class="description">分析を開始すると、画面を閉じてもCloudflare側で処理を継続します。再訪時に保存したジョブIDから結果を再確認できます（この端末のブラウザに保存）。</p><div id="jobHistory"></div></section>
 <div class="footer">薬学リサーチAI　｜　医学的判断には必ず原著論文を確認してください。Europe PMC経由の検索結果の並び順はPubMed公式と異なる場合があります。</div>
 </div>
@@ -37,7 +39,8 @@
 "use strict";
 const API="https://pharma-ai-api.zv2kbz46nh.workers.dev";
 const HISTORY_KEY="pharmaResearchJobsV3";
-const state={searchId:0};
+const SEARCH_HISTORY_KEY="pharmaResearchSearchJobsV1";
+const state={searchId:0,cards:[],activeJobId:null};
 function elem(id){return document.getElementById(id)}
 function setStatus(message,isError=false){const el=elem("status");el.textContent=message;el.classList.toggle("error",isError)}
 function getKeyword(){const q=elem("keyword").value.trim();if(!q)alert("検索ワードを入力してください。");return q}
@@ -84,28 +87,20 @@ function createCard(paper,index){
  const analyze=document.createElement("button");analyze.textContent="この論文をAI分析";analyze.className="green";analyze.disabled=!abstract;card.appendChild(analyze);
  const jobStatus=createText("div","","status");const jobOutput=createText("div","","ai-output");jobOutput.style.display="none";card.append(jobStatus,jobOutput);
  analyze.addEventListener("click",()=>submitJob({title,abstract},"論文："+title,jobStatus,jobOutput,analyze));
- const item={card,jaTitle,jaAbs,title,abstract,retryTranslation};
- retryTranslation.addEventListener("click",()=>translateOne(item));
+ const item={card,jaTitle,jaAbs,title,abstract,pmid,retryTranslation};
+ retryTranslation.addEventListener("click",()=>retryTranslationJob(item));
  return item;
 }
-async function translateOne(paper){
- const {title,abstract,jaTitle,jaAbs,retryTranslation}=paper;
- retryTranslation.style.display="none";
- jaTitle.textContent="タイトル日本語訳：翻訳中…";
- if(abstract)jaAbs.textContent="Abstract日本語訳：翻訳中…";
+async function retryTranslationJob(paper){
+ const id=state.activeJobId;
+ if(!id){setStatus("この論文の検索ジョブが見つかりません。",true);return}
+ paper.retryTranslation.disabled=true;
+ setStatus("この論文の翻訳再試行をQueueに登録しています…");
  try{
-  // Worker側で混雑時に最大1回再試行するため、十分な通信時間を設定。
-  const translated=await apiRequest("/",{mode:"translate-article",title,abstract},65000);
-  if(!translated.titleJa || (abstract && !translated.abstractJa))throw new Error("翻訳内容が空でした。");
-  jaTitle.textContent="タイトル日本語訳："+translated.titleJa;
-  jaAbs.textContent=abstract?"Abstract日本語訳："+translated.abstractJa:"要旨なし";
-  return true;
- }catch(e){
-  jaTitle.textContent="タイトル日本語訳：取得できませんでした";
-  if(abstract)jaAbs.textContent="Abstract日本語訳：取得できませんでした（"+e.message+"）。原文をご確認ください。";
-  retryTranslation.style.display="block";
-  return false;
- }
+  await apiRequest("/jobs/"+encodeURIComponent(id)+"/retry-translation",{pmid:paper.pmid},15000);
+  await followSearchJob(id);
+ }catch(e){setStatus("翻訳の再試行を開始できませんでした："+e.message,true)}
+ finally{paper.retryTranslation.disabled=false}
 }
 function normalizePaperText(value){
  const txt=String(value||"");
@@ -123,43 +118,103 @@ function getArticleInfo(doc){
   return {pmid,title,abstract};
  });
 }
+function loadSearchHistory(){try{return JSON.parse(localStorage.getItem(SEARCH_HISTORY_KEY)||"[]")}catch{return []}}
+function saveSearchHistory(job){
+ const all=loadSearchHistory().filter(x=>x.id!==job.id);
+ all.unshift(job);
+ try{localStorage.setItem(SEARCH_HISTORY_KEY,JSON.stringify(all.slice(0,10)))}catch{}
+ renderSearchHistory();
+}
+function renderSearchHistory(){
+ const root=elem("searchHistory");root.innerHTML="";
+ const all=loadSearchHistory();
+ if(!all.length){root.appendChild(createText("p","まだ検索履歴がありません。","description"));return}
+ for(const job of all){
+  const wrap=document.createElement("div");wrap.className="article";
+  wrap.appendChild(createText("strong",job.query));
+  wrap.appendChild(createText("p",new Date(job.time).toLocaleString("ja-JP"),"tiny"));
+  const b=document.createElement("button");b.className="secondary";b.textContent="結果・進捗を表示";
+  b.addEventListener("click",()=>followSearchJob(job.id));
+  wrap.appendChild(b);root.appendChild(wrap);
+ }
+}
+function applySearchSnapshot(progress){
+ if(!progress || !Array.isArray(progress.papers))return;
+ const results=elem("articleResults"),papers=progress.papers;
+ if(!state.cards.length || state.cards.length!==papers.length || state.cards.some((c,i)=>c.pmid!==papers[i].pmid)){
+  results.innerHTML="";
+  results.appendChild(createText("h3","PubMed収録論文（"+papers.length+"件）"));
+  results.appendChild(createText("p","検索語："+(progress.query||"")+" ／ 取得元："+(progress.source||"PubMed"),"description"));
+  if(progress.sourceWarning)results.appendChild(createText("p",progress.sourceWarning,"description"));
+  if(progress.translationWarning)results.appendChild(createText("p",progress.translationWarning,"description"));
+  state.cards=papers.map((p,i)=>createCard(p,i));
+  for(const card of state.cards)results.appendChild(card.card);
+ }
+ for(let i=0;i<papers.length;i++){
+  const p=papers[i], c=state.cards[i];
+  if(p.translationStatus==="complete"){
+   c.jaTitle.textContent="タイトル日本語訳："+p.titleJa;
+   c.jaAbs.textContent=p.abstract?"Abstract日本語訳："+p.abstractJa:"要旨なし";
+   c.retryTranslation.style.display="none";
+  }else if(p.translationStatus==="failed"){
+   c.jaTitle.textContent="タイトル日本語訳：取得できませんでした";
+   c.jaAbs.textContent=p.abstract?"Abstract日本語訳：取得できませんでした（"+(p.translationError||"エラー")+"）":"要旨なし";
+   c.retryTranslation.style.display="block";
+  }else{
+   const label=p.translationStatus==="running"?"翻訳中":p.translationStatus==="retrying"?"混雑のため再試行待ち":"順番待ち";
+   c.jaTitle.textContent="タイトル日本語訳："+label;
+   c.jaAbs.textContent=p.abstract?"Abstract日本語訳："+label:"要旨なし";
+   c.retryTranslation.style.display="none";
+  }
+ }
+}
+async function followSearchJob(jobId){
+ const id=++state.searchId;
+ state.activeJobId=jobId;state.cards=[];elem("articleResults").innerHTML="";
+ elem("searchJobInfo").style.display="block";
+ elem("searchProgress").textContent="ジョブID："+jobId+"\n状態を確認しています…";
+ const button=elem("readButton");button.disabled=true;
+ let transientErrors=0;
+ for(let n=0;n<600;n++){
+  if(id!==state.searchId)return;
+  try{
+   const res=await fetch(API+"/jobs/"+encodeURIComponent(jobId),{cache:"no-store"});
+   const job=await res.json();
+   if(!res.ok)throw new Error(job.error||"HTTP "+res.status);
+   const p=typeof job.result==="string"?JSON.parse(job.result||"null"):job.result;
+   transientErrors=0;
+   if(p&&p.kind==="research"){
+    if(p.papers?.length)applySearchSnapshot(p);
+    const phase=p.phase==="searching"?"PubMedから検索中":p.phase==="translating"?"翻訳を処理中":p.phase==="done"?"処理完了":"順番待ち";
+    elem("searchProgress").textContent=`${phase} ／ ${p.completed||0}/${p.total||0}件完了（翻訳失敗：${p.failed||0}件）\nジョブID：${jobId}`;
+    setStatus(`${phase}（${p.completed||0}/${p.total||0}件）。画面を閉じてもサーバーで続行します。`);
+   }else{elem("searchProgress").textContent="Queueで順番待ち…\nジョブID："+jobId;setStatus("検索ジョブを登録しました。Queueの処理待ちです。")}
+   if(job.status==="complete"){
+    if(!p?.papers?.length)elem("articleResults").textContent="該当する論文はありませんでした。";
+    setStatus(`完了しました。論文${p?.total||0}件、翻訳成功${(p?.completed||0)-(p?.failed||0)}件、失敗${p?.failed||0}件。`);
+    button.disabled=false;return;
+   }
+   if(job.status==="failed"){
+    setStatus("検索・翻訳ジョブでエラーが発生しました："+(job.error||"詳細不明"),true);
+    button.disabled=false;return;
+   }
+  }catch(e){transientErrors++;setStatus("状態確認に失敗しました（"+e.message+"）。再接続を試みます。",true);if(transientErrors>=10){button.disabled=false;return}}
+  await new Promise(resolve=>setTimeout(resolve,4000));
+ }
+ button.disabled=false;
+ setStatus("確認を一旦終了しました。検索履歴から再開できます。",true);
+}
 async function searchPubmedArticles(){
- const q=getKeyword();if(!q)return;const id=++state.searchId;const results=elem("articleResults");results.innerHTML="";elem("searchLinks").innerHTML="";
- const button=elem("readButton");button.disabled=true;let seconds=0;
- setStatus("検索語を確認し、PubMedから論文を取得しています…（0秒経過）");
- const elapsed=setInterval(()=>{if(id===state.searchId)setStatus("PubMedから論文を取得しています…（"+(++seconds)+"秒経過）")},1000);
- let data;
- try{data=await apiRequest("/pubmed/search",{query:q,retmax:Number(elem("resultCount").value)},75000)}
- catch(e){if(id===state.searchId){setStatus("論文取得に失敗："+e.message,true);results.textContent="論文を表示できませんでした。通信状態やCloudflareログを確認してください。"}return}
- finally{clearInterval(elapsed);button.disabled=false}
- if(id!==state.searchId)return;
- if(data.translationWarning)setStatus("英訳について："+data.translationWarning);
- if(!data.ids?.length){results.textContent="該当する論文はありませんでした。";setStatus("検索完了（0件）");return}
- let papers;
- if(Array.isArray(data.papers)){
-   papers=data.papers.map(p=>({pmid:String(p.pmid||""),title:normalizePaperText(p.title)||"タイトルなし",abstract:normalizePaperText(p.abstract)}));
- }else{
-   const doc=new DOMParser().parseFromString(data.xml||"","text/xml");
-   if(doc.querySelector("parsererror")){setStatus("PubMedのXMLを読み取れませんでした。",true);return}
-   papers=getArticleInfo(doc);
- }
- if(!papers.length){results.textContent="論文が見つかりませんでした。";setStatus("取得0件",true);return}
- results.appendChild(createText("h3","PubMed収録論文（"+papers.length+"件）"));
- results.appendChild(createText("p","検索語："+data.query+" ／ 取得元："+(data.source||"NCBI PubMed"),"description"));
- if(data.sourceWarning)results.appendChild(createText("p",data.sourceWarning,"description"));
- if(data.translationWarning)results.appendChild(createText("p",data.translationWarning,"description"));
- const cards=papers.map((p,i)=>createCard(p,i));for(const item of cards)results.appendChild(item.card);
- setStatus(papers.length+"件の原文を表示しました。日本語訳を順次作成します（0/"+papers.length+"件）。");
- // Gemini APIが混雑している間は同時リクエストを避け、1件ずつ翻訳します。
- let done=0,failed=0;
- for(const item of cards){
-  if(id!==state.searchId)break;
-  const success=await translateOne(item);
-  done++;if(!success)failed++;
-  if(id===state.searchId)setStatus("PubMed原文："+papers.length+"件取得済み。翻訳完了："+done+"/"+papers.length+"件（失敗："+failed+"件）。");
-  if(done<cards.length)await new Promise(resolve=>setTimeout(resolve,800));
- }
- if(id===state.searchId)setStatus(papers.length+"件の原文を表示しました。翻訳成功："+(done-failed)+"件、失敗："+failed+"件。失敗した論文は「この論文の翻訳を再試行」から個別に再翻訳できます。",false);
+ const q=getKeyword();if(!q)return;
+ ++state.searchId;
+ const results=elem("articleResults");results.innerHTML="";state.cards=[];
+ const b=elem("readButton");b.disabled=true;
+ setStatus("検索・翻訳をバックグラウンドに登録しています…");
+ try{
+  const job=await apiRequest("/jobs",{kind:"research",query:q,retmax:Number(elem("resultCount").value)},15000);
+  saveSearchHistory({id:job.jobId,query:q,time:new Date().toISOString()});
+  await followSearchJob(job.jobId);
+ }catch(e){b.disabled=false;setStatus("検索を開始できませんでした："+e.message,true)}
 }
 function updateCompareCount(){const n=document.querySelectorAll(".compare-checkbox:checked").length;elem("compareCount").textContent="選択中："+n+"件（2〜5件）"}
 async function compareSelected(){
@@ -201,4 +256,7 @@ function renderJobHistory(){
  }
 }
 renderJobHistory();
+renderSearchHistory();
+const recentSearch=loadSearchHistory()[0];
+if(recentSearch)followSearchJob(recentSearch.id);
 </script></body></html>
