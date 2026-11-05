@@ -7,7 +7,7 @@
 <title>薬学リサーチAI</title>
 <style>
 *{box-sizing:border-box}body{margin:0;padding:18px;background:#f3f6f9;color:#263238;font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN",sans-serif}
-.container{max-width:720px;margin:auto}h1{color:#245b83;text-align:center;font-size:27px;margin:12px 0 22px}h2{color:#245b83;font-size:20px;margin:4px 0 20px}h3{font-size:17px;color:#245b83}.section{padding:22px 18px;background:#fff;border-radius:16px;margin:18px 0;box-shadow:0 3px 12px #1d2b360d}label{display:block;font-weight:700;margin:12px 0 8px}input[type=text],select{width:100%;padding:14px;border:1px solid #b9c9d5;border-radius:10px;font-size:16px;background:#fff}button{width:100%;padding:15px;margin:7px 0;border:0;border-radius:10px;background:#245b83;color:white;font-size:16px;font-weight:700;cursor:pointer}button.secondary{background:#477b9f}button.green{background:#287b65}button.gray{background:#687782}button:disabled{opacity:.55;cursor:not-allowed}.description{font-size:13px;color:#65727c;line-height:1.7}.status{color:#287b65;margin:12px 0;line-height:1.7;white-space:pre-wrap}.error{color:#b02525}.article{border:1px solid #dce3e9;border-radius:12px;background:#fff;padding:17px;margin:15px 0;overflow-wrap:anywhere}.original{color:#526472;white-space:pre-wrap;font-size:14px;line-height:1.6}.translated{white-space:pre-wrap;line-height:1.7}.muted{color:#6c7c88}.ai-output{white-space:pre-wrap;line-height:1.8;background:#f0f6f9;padding:15px;margin:10px 0;border-radius:9px;overflow-wrap:anywhere}a{color:#166a9e;overflow-wrap:anywhere}.soft{border-radius:10px;padding:14px;background:#eef4f8}.article label{font-weight:400;display:flex;gap:9px;align-items:center}.article input[type=checkbox]{width:20px;height:20px;flex:none}.row{display:flex;align-items:center;gap:10px}.row select{max-width:135px}.result-links a{display:block;padding:10px;border-bottom:1px solid #ddd}.tiny{font-size:12px;color:#80909c}.footer{text-align:center;color:#8997a0;font-size:12px;padding:12px}.progress-track{width:100%;height:12px;border-radius:20px;background:#dce8ef;overflow:hidden;margin:12px 0 5px}.progress-bar{height:100%;width:0%;background:#287b65;transition:width .25s ease}.section[hidden]{display:none}
+.container{max-width:720px;margin:auto}h1{color:#245b83;text-align:center;font-size:27px;margin:12px 0 22px}h2{color:#245b83;font-size:20px;margin:4px 0 20px}h3{font-size:17px;color:#245b83}.section{padding:22px 18px;background:#fff;border-radius:16px;margin:18px 0;box-shadow:0 3px 12px #1d2b360d}label{display:block;font-weight:700;margin:12px 0 8px}input[type=text],select{width:100%;padding:14px;border:1px solid #b9c9d5;border-radius:10px;font-size:16px;background:#fff}button{width:100%;padding:15px;margin:7px 0;border:0;border-radius:10px;background:#245b83;color:white;font-size:16px;font-weight:700;cursor:pointer}button.secondary{background:#477b9f}button.green{background:#287b65}button.gray{background:#687782}button:disabled{opacity:.55;cursor:not-allowed}.description{font-size:13px;color:#65727c;line-height:1.7}.status{color:#287b65;margin:12px 0;line-height:1.7;white-space:pre-wrap}.error{color:#b02525}.article{border:1px solid #dce3e9;border-radius:12px;background:#fff;padding:17px;margin:15px 0;overflow-wrap:anywhere}.original{color:#526472;white-space:pre-wrap;font-size:14px;line-height:1.6}.translated{white-space:pre-wrap;line-height:1.7}.muted{color:#6c7c88}.ai-output{white-space:pre-wrap;line-height:1.8;background:#f0f6f9;padding:15px;margin:10px 0;border-radius:9px;overflow-wrap:anywhere}a{color:#166a9e;overflow-wrap:anywhere}.soft{border-radius:10px;padding:14px;background:#eef4f8}.article label{font-weight:400;display:flex;gap:9px;align-items:center}.article input[type=checkbox]{width:20px;height:20px;flex:none}.row{display:flex;align-items:center;gap:10px}.row select{max-width:135px}.result-links a{display:block;padding:10px;border-bottom:1px solid #ddd}.tiny{font-size:12px;color:#80909c}.footer{text-align:center;color:#8997a0;font-size:12px;padding:12px}.progress-track{width:100%;height:12px;border-radius:20px;background:#dce8ef;overflow:hidden;margin:12px 0 5px}.progress-bar{height:100%;width:0%;background:#287b65;transition:width .25s ease}.section[hidden]{display:none}textarea{width:100%;min-height:100px;font-size:15px;padding:10px;border:1px solid #b9c9d5;border-radius:8px}input[type=file]{display:block;width:100%;padding:10px;font-size:14px}details{margin:12px 0;padding:9px;border:1px solid #dce3e9;border-radius:9px}summary{cursor:pointer;color:#245b83;font-weight:bold}.info-notice{background:#f3f6f9;border-radius:9px;padding:12px;font-size:13px;line-height:1.7}
 </style>
 </head>
 <body><div class="container">
@@ -36,12 +36,13 @@
 </section>
 <section class="section">
   <h2>論文検索結果</h2>
-  <div class="soft"><strong>論文比較（2〜5件）</strong><p class="description">Abstractがある論文のチェックボックスを2〜5件選択してください。</p><div id="compareCount" class="status">選択中：0件</div><button class="green" id="compareButton" onclick="compareSelected()">選択した論文を比較分析</button><div id="compareStatus" class="status"></div><div id="compareOutput" class="ai-output" style="display:none"></div></div>
+  <div class="info-notice">AI分析は本文ベースです。Europe PMCで公開全文XMLを取得できる論文だけ自動分析します。全文を取得できない論文は、各論文欄で手元のPDF・TXTまたは本文テキストを指定してください。AbstractだけのAI分析は行いません。</div>
+  <div class="soft"><strong>論文比較（2〜5件）</strong><p class="description">チェックボックスで2〜5件選ぶと、公開全文XML（または指定PDF）の内容を比較します。本文を取得できない論文があれば中止し、Abstractだけで比較しません。</p><div id="compareCount" class="status">選択中：0件</div><button class="green" id="compareButton" onclick="compareSelected()">選択した論文の全文を比較分析</button><div id="compareStatus" class="status"></div><div id="compareOutput" class="ai-output" style="display:none"></div></div>
   <div id="articleResults"><p class="description">「PubMedの論文を日本語で読む」を押すと、ここに結果が表示されます。</p></div>
 </section>
 <section class="section"><h2>検索・翻訳の履歴</h2><p class="description">この端末で開始したジョブのIDを保存しています。再訪時に結果を読み込めます。</p><div id="searchHistory"></div></section>
 <section class="section"><h2>バックグラウンド分析の履歴</h2><p class="description">分析を開始すると、画面を閉じてもCloudflare側で処理を継続します。再訪時に保存したジョブIDから結果を再確認できます（この端末のブラウザに保存）。</p><div id="jobHistory"></div></section>
-<div class="footer">薬学リサーチAI　｜　医学的判断には必ず原著論文を確認してください。翻訳にはGeminiとMyMemoryを使用し、失敗時は自動切替します。MyMemoryは外部翻訳サービスです。患者情報・機密情報は入力しないでください。Europe PMC経由の検索結果の並び順はPubMed公式と異なる場合があります。</div>
+<div class="footer">薬学リサーチAI　｜　医学的判断には必ず原著論文を確認してください。翻訳にはGeminiとMyMemoryを使用し、失敗時は自動切替します。MyMemoryは外部翻訳サービスです。患者情報・機密情報は入力しないでください。Europe PMC経由の検索結果の並び順はPubMed公式と異なる場合があります。AI全文分析は公開全文XMLか端末で読み込んだPDF/TXTを対象とします。図・画像・補足資料、PDF中の画像文字は一部抽出されません。全文取得できない場合、Abstract分析への自動切替はしません。手元のPDFはブラウザ内でテキストを抽出し、分析時にGeminiへ送信します。論文の利用条件を守ってください。</div>
 </div>
 <script>
 "use strict";
@@ -50,7 +51,7 @@ const HISTORY_KEY = "pharmaResearchJobsV3";
 const SEARCH_HISTORY_KEY = "pharmaResearchSearchJobsV1";
 const LINK_HISTORY_KEY = "pharmaResearchLinkJobV3";
 const POLL_MS = 3000;
-const state = { searchVersion: 0, linkVersion: 0, cards: [], activeJobId: null, cardsJobId: null, bannerOwner: "", jobWatchVersions: new Map() };
+const state = { searchVersion: 0, linkVersion: 0, cards: [], activeJobId: null, cardsJobId: null, bannerOwner: "", jobWatchVersions: new Map(), manualTexts: new Map() };
 const $ = id => document.getElementById(id);
 const textEl = (tag, value, className) => {
   const el = document.createElement(tag);
@@ -89,6 +90,7 @@ function phaseLabel(phase) {
     "pubmed-fetch": "PubMed原文の取得", "europepmc-fallback": "代替APIで原文取得",
     translation: "タイトル・Abstractの翻訳", "analysis-preparing": "分析準備",
     "analysis-running": "AI分析・論文比較", "analysis-retry": "AI分析の再試行待ち",
+    "fulltext-lookup": "公開全文XML・手動PDFの本文取得", "fulltext-extract": "論文本文の分割AI分析", "fulltext-final": "本文全体の統合評価・論文比較",
     done: "全行程が完了", failed: "失敗"
   })[phase] || "進行状況を確認中";
 }
@@ -100,7 +102,12 @@ function parseJobResult(job) {
 function stagePercent(job, p) {
   if (job.status === "complete") return 100;
   if (!p) return 1;
-  if (p.kind === "analysis") return p.phase === "analysis-running" ? 55 : 15;
+  if (p.kind === "analysis") {
+    if (p.phase === "fulltext-lookup") return 5 + Math.round(24 * (p.articles || []).filter(x => x.status !== "pending").length / Math.max(1,(p.articles || []).length));
+    if (p.phase === "fulltext-extract") return 30 + Math.round(58 * (p.articles || []).reduce((n,x)=>n+(x.analyzed||0),0) / Math.max(1,(p.articles || []).reduce((n,x)=>n+(x.chunks||0),0)));
+    if (p.phase === "fulltext-final") return 92;
+    return 3;
+  }
   if (p.kind === "link") return p.phase === "query-translation" ? 45 : 5;
   const bases = { queued: 2, "query-translation": 9, "pubmed-search": 18, "pubmed-fetch": 25, "europepmc-fallback": 25, translation: 35 };
   if (p.phase !== "translation") return bases[p.phase] ?? 5;
@@ -215,8 +222,8 @@ function createCard(paper, index) {
   card.dataset.pmid = pmid; card.dataset.title = title; card.dataset.abstract = abstract;
   const label = document.createElement("label");
   const cb = document.createElement("input"); cb.type = "checkbox"; cb.className = "compare-checkbox";
-  cb.disabled = !abstract; cb.addEventListener("change", updateCompareCount);
-  label.append(cb, document.createTextNode(abstract ? "この論文を比較対象に選択" : "Abstractがないため比較できません"));
+  cb.disabled = !pmid; cb.addEventListener("change", updateCompareCount);
+  label.append(cb, document.createTextNode("この論文を全文比較の対象に選択"));
   card.append(label, textEl("h3", (index + 1) + ". " + title), cardText("original", "タイトル原文：" + title));
   const titleJa = cardText("translated", "タイトル日本語訳：翻訳待ち"); card.appendChild(titleJa);
   card.append(textEl("strong", "Abstract（要旨）"), cardText("original", abstract || "Abstractの登録なし"));
@@ -224,15 +231,70 @@ function createCard(paper, index) {
   const retry = textEl("button", "失敗した翻訳を再試行", "secondary"); retry.style.display = "none"; card.appendChild(retry);
   card.appendChild(cardText("tiny", "PMID：" + (pmid || "不明")));
   if (pmid) link(card, "PubMedで原文を確認する", "https://pubmed.ncbi.nlm.nih.gov/" + encodeURIComponent(pmid) + "/");
-  const analyze = textEl("button", "この論文をAI分析", "green"); analyze.disabled = !abstract; card.appendChild(analyze);
+  card.appendChild(cardText("div", "AI分析はAbstractではなく、取得した本文全体を使用します。公開全文がない論文は、以下からPDF/TXTを選択してください。", "description"));
+  const details=document.createElement("details");
+  const summary=document.createElement("summary"); summary.textContent="手元のPDF・TXTまたは本文テキストを指定（任意）";details.appendChild(summary);
+  const picker=document.createElement("input");picker.type="file";picker.accept=".pdf,.txt,application/pdf,text/plain";
+  const pdfStatus=cardText("status","PDF/TXTはまだ選択されていません");
+  const textarea=document.createElement("textarea");textarea.placeholder="本文テキストを貼り付けることもできます（500文字以上）";
+  const useText=textEl("button","貼り付けた本文を使用","secondary");
+  details.append(picker,pdfStatus,textarea,useText);
+  const saved=state.manualTexts.get(pmid);
+  if(saved)pdfStatus.textContent="本文を設定済み："+saved.name+"（"+saved.text.length+"文字）";
+  picker.addEventListener("change",async()=>{
+    const file=picker.files?.[0];if(!file)return;
+    picker.disabled=true;pdfStatus.textContent="本文テキストを端末内で抽出しています…";
+    try{
+      if(file.size>20*1024*1024)throw Error("ファイルが20MBを超えています");
+      let text;
+      if(/\.txt$/i.test(file.name))text=await file.text();
+      else if(/\.pdf$/i.test(file.name))text=await extractPdfText(file);
+      else throw Error("PDFまたはTXTファイルを選んでください");
+      setManualText(pmid,text,file.name);pdfStatus.textContent="設定済："+file.name+"（"+text.length+"文字）";
+    }catch(e){pdfStatus.textContent="本文読込エラー："+e.message;}
+    finally{picker.disabled=false;}
+  });
+  useText.addEventListener("click",()=>{
+    try{setManualText(pmid,textarea.value,"貼り付け本文");pdfStatus.textContent="貼り付け本文を設定済み（"+textarea.value.trim().length+"文字）";}
+    catch(e){pdfStatus.textContent="入力エラー："+e.message;}
+  });
+  card.appendChild(details);
+  const analyze = textEl("button", "この論文の全文をAI分析", "green"); analyze.disabled = !pmid; card.appendChild(analyze);
   const jobStatus = textEl("div", "", "status");
   const output = textEl("div", "", "ai-output"); output.style.display = "none";
   card.append(jobStatus, output);
-  analyze.addEventListener("click", () => submitAnalysis({ title, abstract }, "論文：" + title, jobStatus, output, analyze));
-  const item = { card, cb, titleJa, abstractJa, retry, pmid, title, abstract };
+  analyze.addEventListener("click", () => submitAnalysis(analysisPayload(pmid,title), "全文分析：" + title, jobStatus, output, analyze));
+  const item = { card, cb, titleJa, abstractJa, retry, pmid, title, abstract, pdfStatus };
   retry.addEventListener("click", () => retryTranslation(item));
   return item;
 }
+function setManualText(pmid,text,name){
+  const body=String(text||"").replace(/\r\n/g,"\n").trim();
+  if(body.length<500)throw Error("本文の文字数が不足しています（500文字以上）");
+  if(body.length>240000)throw Error("24万文字を超えています。途中を省略せず、別の方法を検討してください");
+  state.manualTexts.set(pmid,{text:body,name});
+}
+function analysisPayload(pmid,title){
+  const manual=state.manualTexts.get(pmid);
+  return {kind:"analysis",pmid,title,...(manual?{manualText:manual.text,manualFileName:manual.name}:{})};
+}
+async function extractPdfText(file){
+  // PDF.js で端末内の選択可能文字を読み取る。スキャン画像のOCRは対象外。
+  const url="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs";
+  const pdfjs=await import(url);
+  pdfjs.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs";
+  const doc=await pdfjs.getDocument({data:new Uint8Array(await file.arrayBuffer()),useSystemFonts:true}).promise;
+  if(doc.numPages>120)throw Error("120ページを超えるPDFには対応していません");
+  const pages=[];
+  for(let i=1;i<=doc.numPages;i++){
+    const page=await doc.getPage(i),content=await page.getTextContent();
+    pages.push(`【PDF ${i}ページ】\n`+content.items.map(x=>x.str||"").join(" "));
+  }
+  const text=pages.join("\n\n");
+  if(text.trim().length<500)throw Error("本文文字が読み取れません。画像PDFはOCR非対応です。本文をテキストで貼り付けてください");
+  return text;
+}
+
 function fieldStatus(p, field) {
   // アップグレード前に作成した検索履歴も表示できるようにする。
   return p[field + "Status"] || p.translationStatus || "pending";
@@ -348,10 +410,10 @@ async function retryTranslation(item) {
 }
 async function compareSelected() {
   const selected = Array.from(document.querySelectorAll(".compare-checkbox:checked")).map(cb => {
-    const card = cb.closest(".article"); return { title: card.dataset.title, abstract: card.dataset.abstract, pmid: card.dataset.pmid };
+    const card = cb.closest(".article"); return analysisPayload(card.dataset.pmid,card.dataset.title);
   });
   if (selected.length < 2 || selected.length > 5) { $("compareStatus").textContent = "論文を2〜5件選んでください。"; return; }
-  await submitAnalysis({ articles: selected }, "論文比較：" + selected.length + "件", $("compareStatus"), $("compareOutput"), $("compareButton"));
+  await submitAnalysis({ kind:"analysis", articles: selected }, "全文比較：" + selected.length + "件", $("compareStatus"), $("compareOutput"), $("compareButton"));
 }
 function analysisHistory() { return loadJSON(HISTORY_KEY, []); }
 function renderAnalysisHistory() {
@@ -396,13 +458,15 @@ async function watchAnalysis(id, stat, out) {
       failures = 0;
       globalProgress("analysis:" + id, "AI分析・論文比較", job, p);
       const stage = phaseLabel(p?.phase || (job.status === "queued" ? "queued" : "analysis-running"));
-      stat.textContent = `${stage} ／ ${p?.note || "進行中"}\n試行：${p?.attempt || 0}回 ／ 最終受信：${timeNow()}\nジョブID：${id}`;
+      const articleProgress=(p?.articles||[]).map((a,i)=>`${i+1}件目 PMID ${a.pmid}：${a.status}（本文${a.chars||0}文字、分析${a.analyzed||0}/${a.chunks||0}部分）${a.reason ? " / "+a.reason : ""}`).join("\n");
+      stat.textContent = `${stage} ／ ${p?.note || "進行中"}\n${articleProgress}\n最終受信：${timeNow()}\nジョブID：${id}`;
       if (job.status === "complete") {
         out.textContent = p?.text || (p ? "分析結果がありません。" : job.result || "結果がありません。");
         return;
       }
       if (job.status === "failed") {
-        out.replaceChildren(textEl("p", "AI分析に失敗しました：" + (job.error || "詳細不明")));
+        out.replaceChildren(textEl("p", "全文AI分析を完了できませんでした：" + (job.error || "詳細不明")));
+        if((p?.articles||[]).some(a=>a.status==="unavailable"))out.appendChild(cardText("description","取得できない論文は、検索結果の「手元のPDF・TXT」を指定してから新しく分析してください。Abstract分析への自動切替はありません。"));
         const retry = textEl("button", "この分析だけバックグラウンドで再試行", "green");
         retry.addEventListener("click", async () => {
           retry.disabled = true;
