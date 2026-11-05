@@ -1,457 +1,171 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#245b83">
 <title>薬学リサーチAI</title>
 <style>
-* { box-sizing: border-box; }
-body {
-  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-  margin: 0; padding: 18px; background: #f3f6f9; color: #263238;
-}
-.container { max-width: 650px; margin: auto; }
-h1 { color: #245b83; text-align: center; font-size: 25px; }
-h2 { color: #245b83; font-size: 19px; }
-.section {
-  background: white; padding: 18px; margin: 18px 0;
-  border-radius: 12px; box-shadow: 0 2px 7px rgba(0,0,0,.06);
-}
-label { display: block; font-weight: bold; margin-bottom: 8px; }
-input {
-  width: 100%; padding: 13px; border: 1px solid #cbd5df;
-  border-radius: 8px; font-size: 16px; margin-bottom: 12px;
-}
-button {
-  width: 100%; padding: 14px; margin: 5px 0; border: none;
-  border-radius: 8px; background: #245b83; color: white;
-  font-size: 16px; font-weight: bold;
-}
-button.secondary { background: #477b9f; }
-button.green { background: #287b65; }
-button.gray { background: #687782; }
-button:disabled { opacity: .65; }
-.description { font-size: 13px; color: #65727c; line-height: 1.6; }
-.status { font-size: 14px; color: #287b65; margin-top: 10px; white-space: pre-wrap; }
-.article {
-  background: white; padding: 16px; margin: 14px 0;
-  border: 1px solid #ddd; border-radius: 10px; overflow-wrap: anywhere;
-}
-.article h3 { color: #245b83; font-size: 17px; }
-.article p { line-height: 1.7; white-space: pre-wrap; }
-.article a { color: #1769aa; font-weight: bold; }
-.original { color: #65727c; font-size: 14px; }
-.ai-output {
-  white-space: pre-wrap; line-height: 1.8; margin-top: 12px;
-  padding: 12px; background: #f3f6f9; border-radius: 8px;
-  overflow-wrap: anywhere;
-}
-.footer { text-align: center; font-size: 12px; color: #87939c; margin: 25px 0; }
+*{box-sizing:border-box}body{margin:0;padding:18px;background:#f3f6f9;color:#263238;font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN",sans-serif}
+.container{max-width:720px;margin:auto}h1{color:#245b83;text-align:center;font-size:27px;margin:12px 0 22px}h2{color:#245b83;font-size:20px;margin:4px 0 20px}h3{font-size:17px;color:#245b83}.section{padding:22px 18px;background:#fff;border-radius:16px;margin:18px 0;box-shadow:0 3px 12px #1d2b360d}label{display:block;font-weight:700;margin:12px 0 8px}input[type=text],select{width:100%;padding:14px;border:1px solid #b9c9d5;border-radius:10px;font-size:16px;background:#fff}button{width:100%;padding:15px;margin:7px 0;border:0;border-radius:10px;background:#245b83;color:white;font-size:16px;font-weight:700;cursor:pointer}button.secondary{background:#477b9f}button.green{background:#287b65}button.gray{background:#687782}button:disabled{opacity:.55;cursor:not-allowed}.description{font-size:13px;color:#65727c;line-height:1.7}.status{color:#287b65;margin:12px 0;line-height:1.7;white-space:pre-wrap}.error{color:#b02525}.article{border:1px solid #dce3e9;border-radius:12px;background:#fff;padding:17px;margin:15px 0;overflow-wrap:anywhere}.original{color:#526472;white-space:pre-wrap;font-size:14px;line-height:1.6}.translated{white-space:pre-wrap;line-height:1.7}.muted{color:#6c7c88}.ai-output{white-space:pre-wrap;line-height:1.8;background:#f0f6f9;padding:15px;margin:10px 0;border-radius:9px;overflow-wrap:anywhere}a{color:#166a9e;overflow-wrap:anywhere}.soft{border-radius:10px;padding:14px;background:#eef4f8}.article label{font-weight:400;display:flex;gap:9px;align-items:center}.article input[type=checkbox]{width:20px;height:20px;flex:none}.row{display:flex;align-items:center;gap:10px}.row select{max-width:135px}.result-links a{display:block;padding:10px;border-bottom:1px solid #ddd}.tiny{font-size:12px;color:#80909c}.footer{text-align:center;color:#8997a0;font-size:12px;padding:12px}
 </style>
 </head>
-<body>
-<div class="container">
+<body><div class="container">
 <h1>薬学リサーチAI</h1>
-
-<div class="section">
-<h2>論文・文献検索</h2>
-<label for="keyword">調べたい内容</label>
-<input id="keyword" type="text" placeholder="例：PPI長期投与と骨折リスク">
-<button onclick="searchPubmed()">PubMedで検索（英語）</button>
-<button class="secondary" onclick="searchJstage()">J-STAGEで検索（日本語）</button>
-<button class="green" onclick="searchBoth()">国内・海外を同時検索</button>
-<button class="gray" onclick="searchPubmedArticles()">PubMedの論文を日本語で読む</button>
-<div id="status" class="status"></div>
-<p class="description">PubMedの論文を最大20件取得し、タイトルとAbstractの日本語訳を表示します。</p>
+<section class="section">
+  <h2>論文・文献検索</h2>
+  <label for="keyword">調べたい内容</label>
+  <input id="keyword" type="text" placeholder="例：PPI長期投与と骨折リスク" value="">
+  <button onclick="searchPubmed()">PubMedで検索（英語）</button>
+  <button class="secondary" onclick="searchJstage()">J-STAGEで検索（日本語）</button>
+  <button class="green" onclick="searchBoth()">国内・海外を同時検索</button>
+  <div class="row"><label for="resultCount" style="margin:5px 0;flex:1">取得論文数</label><select id="resultCount"><option value="5" selected>5件（推奨）</option><option value="10">10件</option><option value="20">20件</option></select></div>
+  <button class="gray" id="readButton" onclick="searchPubmedArticles()">PubMedの論文を日本語で読む</button>
+  <div id="status" class="status" aria-live="polite"></div>
+  <div id="searchLinks" class="result-links"></div>
+  <p class="description">PubMedの原文を先に表示し、タイトルとAbstractの日本語訳を後から順次追加します。AI翻訳が失敗しても原文は残ります。</p>
+</section>
+<section class="section">
+  <h2>論文検索結果</h2>
+  <div class="soft"><strong>論文比較（2〜5件）</strong><p class="description">Abstractがある論文のチェックボックスを2〜5件選択してください。</p><div id="compareCount" class="status">選択中：0件</div><button class="green" id="compareButton" onclick="compareSelected()">選択した論文を比較分析</button><div id="compareStatus" class="status"></div><div id="compareOutput" class="ai-output" style="display:none"></div></div>
+  <div id="articleResults"><p class="description">「PubMedの論文を日本語で読む」を押すと、ここに結果が表示されます。</p></div>
+</section>
+<section class="section"><h2>バックグラウンド分析の履歴</h2><p class="description">分析を開始すると、画面を閉じてもCloudflare側で処理を継続します。再訪時に保存したジョブIDから結果を再確認できます（この端末のブラウザに保存）。</p><div id="jobHistory"></div></section>
+<div class="footer">薬学リサーチAI　｜　医学的判断には必ず原著論文を確認してください。</div>
 </div>
-
-<div class="section">
-<h2>論文検索結果</h2>
-<div style="margin:12px 0;padding:12px;background:#eef4f8;border-radius:8px;">
-  <strong>論文比較（2〜5件）</strong>
-  <p class="description">比較したい論文のチェックボックスを選択し、比較分析ボタンを押してください。Abstractがある論文を選択してください。</p>
-  <div id="compareCount" class="status">選択中：0件</div>
-  <button class="green" id="compareButton" onclick="compareSelected()">選択した論文を比較分析</button>
-  <div id="compareStatus" class="status"></div>
-  <div id="compareOutput" class="ai-output" style="display:none;"></div>
-</div>
-<div id="articleResults">
-<p class="description">「PubMedの論文を日本語で読む」を押すと、ここに結果が表示されます。</p>
-</div>
-</div>
-
-
-<div class="footer">薬学リサーチAI</div>
-</div>
-
 <script>
-// 入力内容の取得
-function getKeyword(id) {
-  const value = document.getElementById(id).value.trim();
-  if (!value) {
-    alert("検索ワードを入力してください。");
-    return "";
-  }
-  return value;
+"use strict";
+const API="https://pharma-ai-api.zv2kbz46nh.workers.dev";
+const HISTORY_KEY="pharmaResearchJobsV3";
+const state={searchId:0};
+function elem(id){return document.getElementById(id)}
+function setStatus(message,isError=false){const el=elem("status");el.textContent=message;el.classList.toggle("error",isError)}
+function getKeyword(){const q=elem("keyword").value.trim();if(!q)alert("検索ワードを入力してください。");return q}
+function addLink(parent,label,url){const a=document.createElement("a");a.textContent=label;a.href=url;a.target="_blank";a.rel="noopener noreferrer";parent.appendChild(a);return a}
+function pubmedLink(query){return "https://pubmed.ncbi.nlm.nih.gov/?term="+encodeURIComponent(query)}
+function jstageLink(query){return "https://www.jstage.jst.go.jp/result/global/-char/ja?globalSearchKey="+encodeURIComponent(query)}
+async function apiRequest(path,body,limit=65000){
+ const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),limit);
+ let res;try{res=await fetch(API+path,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body),signal:controller.signal})}
+ catch(e){throw new Error(e.name==="AbortError"?"接続が時間切れになりました。":"通信できませんでした（"+e.message+"）。")}
+ finally{clearTimeout(timer)}
+ let data;try{data=await res.json()}catch{throw new Error("サーバーから正しいデータが返されませんでした（HTTP "+res.status+"）。")}
+ if(!res.ok)throw new Error(data.error||"HTTP "+res.status);
+ return data;
 }
-
-// Gemini Worker経由の翻訳（MyMemoryは使用しません）
-const WORKER_URL = "https://pharma-ai-api.zv2kbz46nh.workers.dev";
-
-const JOB_POLL_INTERVAL = 4000;
-function saveJobRecord(job) {
-  try {
-    const all = JSON.parse(localStorage.getItem("pharmaResearchJobs") || "{}");
-    all[job.id] = job;
-    localStorage.setItem("pharmaResearchJobs", JSON.stringify(all));
-  } catch (e) {}
+async function translateToEnglish(q){const r=await apiRequest("/",{mode:"translate",direction:"ja-en",text:q},28000);return r.translatedText.trim()}
+async function searchPubmed(){
+ const q=getKeyword();if(!q)return;const links=elem("searchLinks");links.innerHTML="";
+ setStatus("検索語を英語に変換しています…");let term=q;
+ try{term=await translateToEnglish(q);setStatus("検索語を準備しました。下のリンクを開いてください。")}catch(e){setStatus("英訳できなかったため、入力した検索語で検索できます："+e.message,true)}
+ addLink(links,"PubMedの検索結果を開く（"+term+"）",pubmedLink(term));
 }
-async function runBackgroundAnalysis(payload, output, status, label) {
-  output.style.display = "block";
-  output.textContent = "分析ジョブを登録しています...";
-  status.textContent = "サーバーに依頼しています。画面を閉じてもサーバー側の処理は継続します。";
-  const response = await fetch(WORKER_URL + "/jobs", {
-    method: "POST", headers: {"Content-Type":"application/json"},
-    body: JSON.stringify(payload)
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok || !data.jobId) throw new Error(data.error || "ジョブを登録できませんでした。");
-  const job = {id:data.jobId, label:label, status:"queued", createdAt:Date.now()};
-  saveJobRecord(job);
-  output.textContent = "受付完了。バックグラウンドで分析しています...";
-  while (true) {
-    await new Promise(resolve => setTimeout(resolve, JOB_POLL_INTERVAL));
-    const check = await fetch(WORKER_URL + "/jobs/" + encodeURIComponent(data.jobId));
-    const state = await check.json().catch(() => ({}));
-    if (!check.ok) throw new Error(state.error || "進捗を取得できません。");
-    job.status = state.status;
-    saveJobRecord(job);
-    if (state.status === "queued") {
-      status.textContent = "待機中：サーバーで順番を待っています。";
-      output.textContent = "分析開始を待っています...";
-    } else if (state.status === "running") {
-      status.textContent = "分析中：Geminiが論文を解析しています。";
-      output.textContent = "分析中です。画面を閉じても処理は継続します。";
-    } else if (state.status === "complete") {
-      output.textContent = state.result || "分析結果が空でした。";
-      status.textContent = "分析が完了しました。";
-      job.completedAt = Date.now(); saveJobRecord(job);
-      return state.result;
-    } else if (state.status === "failed") {
-      throw new Error(state.error || "バックグラウンド分析に失敗しました。");
-    } else {
-      throw new Error("不明なジョブ状態です：" + state.status);
-    }
-  }
+function searchJstage(){const q=getKeyword();if(q)window.open(jstageLink(q),"_blank","noopener")}
+async function searchBoth(){
+ const q=getKeyword();if(!q)return;const links=elem("searchLinks");links.innerHTML="";
+ addLink(links,"J-STAGEを開く",jstageLink(q));addLink(links,"CiNii Researchを開く","https://cir.nii.ac.jp/all?q="+encodeURIComponent(q));
+ const p=addLink(links,"PubMedを開く（英訳待ち）",pubmedLink(q));
+ setStatus("国内の検索リンクを表示しました。PubMed用の英訳を準備中…");
+ try{const en=await translateToEnglish(q);p.href=pubmedLink(en);p.textContent="PubMedを開く（"+en+"）";setStatus("検索リンクの準備が完了しました。")}
+ catch(e){p.textContent="PubMedを開く（入力した検索語）";setStatus("英訳できませんでした。元の検索語でPubMedを開けます。")}
 }
-
-async function translateText(text, langpair) {
-  const direction = langpair === "ja|en" ? "ja-en" : "en-ja";
-  const chunks = [];
-  // Geminiへの一度の送信量を抑えるため分割
-  for (let i = 0; i < text.length; i += 2500) chunks.push(text.slice(i, i + 2500));
-  const translated = [];
-  for (const chunk of chunks) {
-    const response = await fetch(WORKER_URL, {
-      method: "POST",
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({mode: "translate", direction, text: chunk})
-    });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.error || ("翻訳エラー HTTP " + response.status));
-    if (!data.translatedText) throw new Error("Geminiから翻訳結果を取得できませんでした。");
-    translated.push(data.translatedText);
-  }
-  return translated.join("");
+function createText(tag,text,cls){const el=document.createElement(tag);el.textContent=text;if(cls)el.className=cls;return el}
+function createCard(paper,index){
+ const {pmid,title,abstract}=paper;const card=document.createElement("div");card.className="article";card.dataset.pmid=pmid;
+ card.dataset.title=title;card.dataset.abstract=abstract;
+ const label=document.createElement("label");const checkbox=document.createElement("input");checkbox.type="checkbox";checkbox.className="compare-checkbox";checkbox.disabled=!abstract;checkbox.addEventListener("change",updateCompareCount);label.append(checkbox,document.createTextNode(abstract?"この論文を比較対象に選択":"Abstractがないため比較できません"));card.appendChild(label);
+ card.appendChild(createText("h3",(index+1)+". "+title));card.appendChild(createText("p","タイトル原文："+title,"original"));
+ const jaTitle=createText("p","タイトル日本語訳：翻訳待ち","translated");card.appendChild(jaTitle);
+ card.appendChild(createText("strong","Abstract（要旨）"));card.appendChild(createText("p",abstract||"要旨は登録されていません。","original"));
+ const jaAbs=createText("p",abstract?"Abstract日本語訳：翻訳待ち":"要旨なし","translated");card.appendChild(jaAbs);
+ card.appendChild(createText("p","PMID："+(pmid||"不明"),"tiny"));
+ if(pmid)addLink(card,"PubMedで原文を確認する","https://pubmed.ncbi.nlm.nih.gov/"+pmid+"/");
+ const analyze=document.createElement("button");analyze.textContent="この論文をAI分析";analyze.className="green";analyze.disabled=!abstract;card.appendChild(analyze);
+ const jobStatus=createText("div","","status");const jobOutput=createText("div","","ai-output");jobOutput.style.display="none";card.append(jobStatus,jobOutput);
+ analyze.addEventListener("click",()=>submitJob({title,abstract},"論文："+title,jobStatus,jobOutput,analyze));
+ return {card,jaTitle,jaAbs,title,abstract};
 }
-async function translateToEnglish(text) { return await translateText(text, "ja|en"); }
-async function translateToJapanese(text) { return await translateText(text, "en|ja"); }
-
-// PubMed検索
-async function searchPubmed() {
-  const q = getKeyword("keyword");
-  if (!q) return;
-  const tab = window.open("about:blank", "_blank");
-  if (!tab) {
-    alert("新しいタブを開けませんでした。");
-    return;
-  }
-  document.getElementById("status").textContent = "英語に翻訳しています...";
-  try {
-    const english = await translateToEnglish(q);
-    tab.location.href = "https://pubmed.ncbi.nlm.nih.gov/?term=" + encodeURIComponent(english);
-    document.getElementById("status").textContent = "PubMedを検索しました。";
-  } catch (error) {
-    tab.location.href = "https://pubmed.ncbi.nlm.nih.gov/?term=" + encodeURIComponent(q);
-    document.getElementById("status").textContent = "翻訳できなかったため、日本語で検索しました。";
-  }
+async function translateOne(paper){
+ const {title,abstract,jaTitle,jaAbs}=paper;
+ jaTitle.textContent="タイトル日本語訳：翻訳中…";if(abstract)jaAbs.textContent="Abstract日本語訳：翻訳中…";
+ try{
+  const translated=await apiRequest("/",{mode:"translate-article",title,abstract},28000);
+  jaTitle.textContent="タイトル日本語訳："+translated.titleJa;
+  jaAbs.textContent=abstract?"Abstract日本語訳："+translated.abstractJa:"要旨なし";
+ }catch(e){jaTitle.textContent="タイトル日本語訳：取得できませんでした";if(abstract)jaAbs.textContent="Abstract日本語訳：取得できませんでした（"+e.message+"）。原文をご確認ください。"}
 }
-
-// J-STAGE検索
-function searchJstage() {
-  const q = getKeyword("keyword");
-  if (!q) return;
-  const url = "https://www.jstage.jst.go.jp/result/global/-char/ja?globalSearchKey=" + encodeURIComponent(q);
-  window.open(url, "_blank");
+function getArticleInfo(doc){
+ const entries=Array.from(doc.querySelectorAll("PubmedArticle"));
+ return entries.map(a=>{
+  const pmid=a.querySelector("MedlineCitation > PMID")?.textContent?.trim()||a.querySelector("PMID")?.textContent?.trim()||"";
+  const title=a.querySelector("ArticleTitle")?.textContent?.trim()||"タイトルなし";
+  const abstract=Array.from(a.querySelectorAll("Abstract > AbstractText")).map(part=>{const label=part.getAttribute("Label");return (label?label+"： ":"")+(part.textContent||"").trim()}).join("\n\n");
+  return {pmid,title,abstract};
+ });
 }
-
-// HTML表示用の文字列処理
-function escapeHTML(text) {
-  return String(text).replace(/[&<>"']/g, function(char) {
-    const entities = {"&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;"};
-    return entities[char];
-  });
+async function searchPubmedArticles(){
+ const q=getKeyword();if(!q)return;const id=++state.searchId;const results=elem("articleResults");results.innerHTML="";elem("searchLinks").innerHTML="";
+ const button=elem("readButton");button.disabled=true;let seconds=0;
+ setStatus("検索語を確認し、PubMedから論文を取得しています…（0秒経過）");
+ const elapsed=setInterval(()=>{if(id===state.searchId)setStatus("PubMedから論文を取得しています…（"+(++seconds)+"秒経過）")},1000);
+ let data;
+ try{data=await apiRequest("/pubmed/search",{query:q,retmax:Number(elem("resultCount").value)},75000)}
+ catch(e){if(id===state.searchId){setStatus("論文取得に失敗："+e.message,true);results.textContent="論文を表示できませんでした。通信状態やCloudflareログを確認してください。"}return}
+ finally{clearInterval(elapsed);button.disabled=false}
+ if(id!==state.searchId)return;
+ if(data.translationWarning)setStatus("英訳について："+data.translationWarning);
+ if(!data.ids?.length){results.textContent="該当する論文はありませんでした。";setStatus("検索完了（0件）");return}
+ const doc=new DOMParser().parseFromString(data.xml,"text/xml");
+ if(doc.querySelector("parsererror")){setStatus("PubMedのXMLを読み取れませんでした。",true);return}
+ const papers=getArticleInfo(doc);if(!papers.length){results.textContent="PubMedが論文を返しませんでした。";setStatus("取得0件",true);return}
+ results.appendChild(createText("h3","PubMed検索結果（"+papers.length+"件）"));
+ results.appendChild(createText("p","検索語："+data.query,"description"));
+ const cards=papers.map((p,i)=>createCard(p,i));for(const item of cards)results.appendChild(item.card);
+ setStatus(papers.length+"件の原文を表示しました。日本語訳を順次作成します（0/"+papers.length+"件）。");
+ // 上限2本の並列翻訳。原文はすべて表示済みのため翻訳失敗の影響を受けません。
+ let next=0,done=0;
+ async function worker(){while(next<cards.length){const idx=next++;await translateOne(cards[idx]);done++;if(state.searchId===id)setStatus("PubMed原文："+papers.length+"件取得済み。翻訳："+done+"/"+papers.length+"件。")}}
+ await Promise.all([worker(),worker()]);
+ if(id===state.searchId)setStatus(papers.length+"件の原文を取得し、日本語訳の処理が終了しました（翻訳できない論文は原文を表示）。");
 }
-
-// 国内・海外を同時検索
-async function searchBoth() {
-  const q = getKeyword("keyword");
-  if (!q) return;
-  const resultTab = window.open("about:blank", "_blank");
-  if (!resultTab) {
-    alert("新しいタブを開けませんでした。");
-    return;
-  }
-  resultTab.document.open();
-  resultTab.document.write("<html><body style='font-family:sans-serif;padding:20px'><h2>検索リンクを準備しています...</h2></body></html>");
-  resultTab.document.close();
-
-  let english = q;
-  let message = "";
-  try {
-    english = await translateToEnglish(q);
-  } catch (error) {
-    message = "英訳できなかったためPubMedも日本語で検索します。";
-  }
-
-  const pubmedUrl = "https://pubmed.ncbi.nlm.nih.gov/?term=" + encodeURIComponent(english);
-  const jstageUrl = "https://www.jstage.jst.go.jp/result/global/-char/ja?globalSearchKey=" + encodeURIComponent(q);
-  const ciniiUrl = "https://cir.nii.ac.jp/all?q=" + encodeURIComponent(q);
-
-  resultTab.document.open();
-  resultTab.document.write(`
-    <!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>論文検索結果</title></head>
-    <body style="font-family:sans-serif;padding:20px;background:#f3f6f9">
-      <h2>論文検索結果</h2>
-      <p>検索語：${escapeHTML(q)}</p>
-      <p>PubMed用英語：${escapeHTML(english)}</p>
-      <p>${escapeHTML(message)}</p>
-      <p><a href="${pubmedUrl}" target="_blank">PubMed（海外論文）を開く</a></p>
-      <p><a href="${jstageUrl}" target="_blank">J-STAGE（国内論文）を開く</a></p>
-      <p><a href="${ciniiUrl}" target="_blank">CiNii Research（国内文献）を開く</a></p>
-    </body></html>
-  `);
-  resultTab.document.close();
+function updateCompareCount(){const n=document.querySelectorAll(".compare-checkbox:checked").length;elem("compareCount").textContent="選択中："+n+"件（2〜5件）"}
+async function compareSelected(){
+ const selected=Array.from(document.querySelectorAll(".compare-checkbox:checked")).map(c=>{const el=c.closest(".article");return {title:el.dataset.title,abstract:el.dataset.abstract,pmid:el.dataset.pmid}});
+ if(selected.length<2||selected.length>5){elem("compareStatus").textContent="比較する論文を2〜5件選択してください。";return}
+ await submitJob({articles:selected},"比較分析："+selected.length+"件",elem("compareStatus"),elem("compareOutput"),elem("compareButton"));
 }
-
-// PubMedから論文を取得して日本語で表示
-async function searchPubmedArticles() {
-  const q = getKeyword("keyword");
-  if (!q) return;
-  const results = document.getElementById("articleResults");
-  const status = document.getElementById("status");
-  results.innerHTML = "";
-  status.textContent = "検索しています...";
-
-  try {
-    const english = await translateToEnglish(q);
-    const searchUrl = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi" +
-      "?db=pubmed&term=" + encodeURIComponent(english) +
-      "&retmax=20&retmode=json&sort=relevance";
-    const searchResponse = await fetch(searchUrl);
-    if (!searchResponse.ok) throw new Error("PubMed検索に失敗しました");
-    const searchData = await searchResponse.json();
-    const ids = searchData.esearchresult.idlist;
-
-    if (!ids || ids.length === 0) {
-      results.textContent = "該当する論文が見つかりませんでした。";
-      status.textContent = "";
-      return;
-    }
-
-    const fetchUrl = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi" +
-      "?db=pubmed&id=" + ids.join(",") + "&retmode=xml";
-    const fetchResponse = await fetch(fetchUrl);
-    if (!fetchResponse.ok) throw new Error("論文情報の取得に失敗しました");
-    const xmlText = await fetchResponse.text();
-    const xml = new DOMParser().parseFromString(xmlText, "text/xml");
-    const articles = Array.from(xml.querySelectorAll("PubmedArticle"));
-    results.innerHTML = "<h2>PubMed検索結果（最大20件）</h2>";
-
-    for (let i = 0; i < articles.length; i++) {
-      const article = articles[i];
-      const pmid = article.querySelector("PMID")?.textContent || "";
-      const title = article.querySelector("ArticleTitle")?.textContent || "タイトルなし";
-      const abstractParts = Array.from(article.querySelectorAll("AbstractText"));
-      const abstract = abstractParts.map(part => {
-        const label = part.getAttribute("Label");
-        return (label ? label + "： " : "") + part.textContent;
-      }).join("\n\n");
-
-      const card = document.createElement("div");
-      card.className = "article";
-      card.dataset.title = title;
-      card.dataset.abstract = abstract;
-
-      const selectLabel = document.createElement("label");
-      selectLabel.style.display = "flex";
-      selectLabel.style.alignItems = "center";
-      selectLabel.style.gap = "8px";
-      selectLabel.style.fontWeight = "normal";
-      const checkbox = document.createElement("input");
-      checkbox.type = "checkbox";
-      checkbox.className = "compare-checkbox";
-      checkbox.style.width = "20px";
-      checkbox.style.margin = "0";
-      checkbox.disabled = !abstract;
-      checkbox.addEventListener("change", updateCompareCount);
-      selectLabel.appendChild(checkbox);
-      const selectText = document.createElement("span");
-      selectText.textContent = abstract ? "この論文を比較対象に選択" : "Abstractがないため比較対象にできません";
-      selectLabel.appendChild(selectText);
-      card.appendChild(selectLabel);
-
-      const heading = document.createElement("h3");
-      heading.textContent = (i + 1) + ". " + title;
-      card.appendChild(heading);
-
-      const originalTitle = document.createElement("p");
-      originalTitle.className = "original";
-      originalTitle.textContent = "タイトル原文：" + title;
-      card.appendChild(originalTitle);
-
-      const japaneseTitle = document.createElement("p");
-      japaneseTitle.textContent = "タイトルを翻訳しています...";
-      card.appendChild(japaneseTitle);
-
-      const abstractHeading = document.createElement("strong");
-      abstractHeading.textContent = "Abstract（要旨）";
-      card.appendChild(abstractHeading);
-
-      const originalAbstract = document.createElement("p");
-      originalAbstract.className = "original";
-      originalAbstract.textContent = abstract || "要旨は登録されていません。";
-      card.appendChild(originalAbstract);
-
-      const japaneseAbstract = document.createElement("p");
-      japaneseAbstract.textContent = "日本語に翻訳しています...";
-      card.appendChild(japaneseAbstract);
-
-      const link = document.createElement("a");
-      link.href = "https://pubmed.ncbi.nlm.nih.gov/" + pmid + "/";
-      link.target = "_blank";
-      link.rel = "noopener";
-      link.textContent = "PubMedで原文を確認する";
-      card.appendChild(link);
-
-      results.appendChild(card);
-
-      try {
-        const translatedTitle = await translateToJapanese(title);
-        japaneseTitle.textContent = "タイトル日本語訳：" + translatedTitle;
-      } catch (error) {
-        japaneseTitle.textContent = "タイトルの翻訳に失敗しました。";
-      }
-
-      if (abstract) {
-        try {
-          const translatedAbstract = await translateToJapanese(abstract);
-          japaneseAbstract.textContent = "Abstract日本語訳：" + translatedAbstract;
-        } catch (error) {
-          japaneseAbstract.textContent = "要旨の翻訳に失敗しました。原文をご確認ください。";
-        }
-      } else {
-        japaneseAbstract.textContent = "要旨はありません。";
-      }
-    }
-    status.textContent = articles.length + "件の論文を取得しました。";
-  } catch (error) {
-    results.textContent = "論文の取得に失敗しました。通信環境や時間をおいて再度お試しください。";
-    status.textContent = "エラー：" + error.message;
-  }
+function readHistory(){try{return JSON.parse(localStorage.getItem(HISTORY_KEY)||"[]")}catch{return []}}
+function storeHistory(item){const data=readHistory().filter(j=>j.id!==item.id);data.unshift(item);try{localStorage.setItem(HISTORY_KEY,JSON.stringify(data.slice(0,15)))}catch{}renderJobHistory()}
+async function submitJob(payload,label,status,output,button){
+ if(button)button.disabled=true;status.textContent="処理を登録しています…";output.style.display="block";output.textContent="Queueへ登録しています…";
+ try{const r=await apiRequest("/jobs",payload,17000);storeHistory({id:r.jobId,label,time:new Date().toISOString()});await watchJob(r.jobId,status,output)}
+ catch(e){status.textContent="AI分析を開始できませんでした："+e.message;output.textContent=status.textContent}
+ finally{if(button)button.disabled=false}
 }
-
-// 論文比較の選択数表示
-function updateCompareCount() {
-  const count = document.querySelectorAll(".compare-checkbox:checked").length;
-  document.getElementById("compareCount").textContent = "選択中：" + count + "件（2〜5件を選択）";
+async function watchJob(id,status,output){
+ output.style.display="block";
+ for(let i=0;i<180;i++){
+  try{
+   const res=await fetch(API+"/jobs/"+encodeURIComponent(id),{cache:"no-store"});const data=await res.json();
+   if(!res.ok)throw new Error(data.error||"HTTP "+res.status);
+   const msg={queued:"順番待ち",running:"AI分析中",complete:"完了",failed:"失敗"}[data.status]||data.status;
+   status.textContent="状態："+msg+"（ジョブID："+id+"）";
+   if(data.status==="complete"){output.textContent=data.result||"分析結果がありません。";return}
+   if(data.status==="failed"){output.textContent="AI分析に失敗しました："+(data.error||"詳細不明");return}
+   output.textContent="バックグラウンドで処理しています。画面を閉じても処理は継続します。";
+  }catch(e){status.textContent="状態確認の通信に失敗："+e.message+"（再試行します）"}
+  await new Promise(resolve=>setTimeout(resolve,4000));
+ }
+ status.textContent="状態の確認を一旦終了しました。履歴から再確認できます。";
 }
-
-// 選択した論文をバックグラウンドで比較分析
-async function compareSelected() {
-  const boxes = Array.from(document.querySelectorAll(".compare-checkbox:checked"));
-  const status = document.getElementById("compareStatus");
-  const output = document.getElementById("compareOutput");
-  const button = document.getElementById("compareButton");
-  if (boxes.length < 2 || boxes.length > 5) {
-    status.textContent = "比較する論文を2〜5件選択してください。"; return;
-  }
-  const articles = boxes.map(box => {
-    const card = box.closest(".article");
-    return {title:card.dataset.title || "", abstract:card.dataset.abstract || ""};
-  });
-  if (articles.some(a => !a.title || !a.abstract)) {
-    status.textContent = "タイトルまたはAbstractがない論文が含まれています。"; return;
-  }
-  button.disabled = true;
-  button.textContent = "比較分析を受付中...";
-  try {
-    await runBackgroundAnalysis({articles}, output, status, "論文比較");
-  } catch (e) {
-    output.style.display = "block";
-    output.textContent = "【エラー】" + e.message;
-    status.textContent = "比較分析に失敗しました。";
-  } finally {
-    button.disabled = false;
-    button.textContent = "選択した論文を比較分析";
-  }
+function renderJobHistory(){
+ const root=elem("jobHistory");root.innerHTML="";const jobs=readHistory();if(!jobs.length){root.appendChild(createText("p","まだ分析履歴はありません。","description"));return}
+ for(const job of jobs){const wrapper=document.createElement("div");wrapper.className="article";wrapper.appendChild(createText("strong",job.label));wrapper.appendChild(createText("p",new Date(job.time).toLocaleString("ja-JP"),"tiny"));
+  const button=document.createElement("button");button.className="secondary";button.textContent="状態・結果を再確認";
+  const status=createText("div","","status"),out=createText("div","","ai-output");out.style.display="none";
+  button.addEventListener("click",async()=>{button.disabled=true;try{await watchJob(job.id,status,out)}finally{button.disabled=false}});
+  wrapper.append(button,status,out);root.appendChild(wrapper);
+ }
 }
-
-// Geminiバックグラウンド分析ボタン
-(function setupGeminiAnalysis() {
-  const results = document.getElementById("articleResults");
-  function addAnalysisButton(card) {
-    if (card.querySelector(".ai-analysis-button")) return;
-    const originals = card.querySelectorAll("p.original");
-    if (originals.length < 2) return;
-    const title = originals[0].textContent.replace("タイトル原文：", "").trim();
-    const abstract = originals[1].textContent.trim();
-    const button = document.createElement("button");
-    button.textContent = "Geminiで論文をAI分析";
-    button.className = "green ai-analysis-button";
-    const status = document.createElement("div");
-    status.className = "status";
-    const output = document.createElement("div");
-    output.className = "ai-output";
-    output.style.display = "none";
-    button.addEventListener("click", async function() {
-      if (!abstract || abstract === "要旨は登録されていません。") {
-        output.textContent = "Abstractがないため分析できません。";
-        output.style.display = "block"; return;
-      }
-      button.disabled = true;
-      button.textContent = "分析受付中...";
-      try {
-        await runBackgroundAnalysis({title, abstract}, output, status, title);
-      } catch (e) {
-        output.style.display = "block";
-        output.textContent = "【エラー】" + e.message;
-        status.textContent = "AI分析に失敗しました。";
-      } finally {
-        button.disabled = false;
-        button.textContent = "Geminiで論文をAI分析";
-      }
-    });
-    card.appendChild(button);
-    card.appendChild(status);
-    card.appendChild(output);
-  }
-  const observer = new MutationObserver(() => results.querySelectorAll(".article").forEach(addAnalysisButton));
-  observer.observe(results, {childList:true, subtree:true});
-})();
-</script>
-</body>
-</html>
+renderJobHistory();
+</script></body></html>
