@@ -8,6 +8,7 @@
 <style>
 *{box-sizing:border-box}body{margin:0;padding:18px;background:#f3f6f9;color:#263238;font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN",sans-serif}
 .container{max-width:720px;margin:auto}h1{color:#245b83;text-align:center;font-size:27px;margin:12px 0 22px}h2{color:#245b83;font-size:20px;margin:4px 0 20px}h3{font-size:17px;color:#245b83}.section{padding:22px 18px;background:#fff;border-radius:16px;margin:18px 0;box-shadow:0 3px 12px #1d2b360d}label{display:block;font-weight:700;margin:12px 0 8px}input[type=text],select{width:100%;padding:14px;border:1px solid #b9c9d5;border-radius:10px;font-size:16px;background:#fff}button{width:100%;padding:15px;margin:7px 0;border:0;border-radius:10px;background:#245b83;color:white;font-size:16px;font-weight:700;cursor:pointer}button.secondary{background:#477b9f}button.green{background:#287b65}button.gray{background:#687782}button:disabled{opacity:.55;cursor:not-allowed}.description{font-size:13px;color:#65727c;line-height:1.7}.status{color:#287b65;margin:12px 0;line-height:1.7;white-space:pre-wrap}.error{color:#b02525}.article{border:1px solid #dce3e9;border-radius:12px;background:#fff;padding:17px;margin:15px 0;overflow-wrap:anywhere}.original{color:#526472;white-space:pre-wrap;font-size:14px;line-height:1.6}.translated{white-space:pre-wrap;line-height:1.7}.muted{color:#6c7c88}.ai-output{white-space:pre-wrap;line-height:1.8;background:#f0f6f9;padding:15px;margin:10px 0;border-radius:9px;overflow-wrap:anywhere}a{color:#166a9e;overflow-wrap:anywhere}.soft{border-radius:10px;padding:14px;background:#eef4f8}.article label{font-weight:400;display:flex;gap:9px;align-items:center}.article input[type=checkbox]{width:20px;height:20px;flex:none}.row{display:flex;align-items:center;gap:10px}.row select{max-width:135px}.result-links a{display:block;padding:10px;border-bottom:1px solid #ddd}.tiny{font-size:12px;color:#80909c}.footer{text-align:center;color:#8997a0;font-size:12px;padding:12px}.progress-track{width:100%;height:12px;border-radius:20px;background:#dce8ef;overflow:hidden;margin:12px 0 5px}.progress-bar{height:100%;width:0%;background:#287b65;transition:width .25s ease}.section[hidden]{display:none}textarea{width:100%;min-height:100px;font-size:15px;padding:10px;border:1px solid #b9c9d5;border-radius:8px}input[type=file]{display:block;width:100%;padding:10px;font-size:14px}details{margin:12px 0;padding:9px;border:1px solid #dce3e9;border-radius:9px}summary{cursor:pointer;color:#245b83;font-weight:bold}.info-notice{background:#f3f6f9;border-radius:9px;padding:12px;font-size:13px;line-height:1.7}
+.filter-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.filter-grid label{margin:0;font-size:13px}.filter-grid select{padding:10px;font-size:14px}.filter-check{display:flex;align-items:center;gap:8px;font-size:14px}.filter-check input{width:18px;height:18px}.favorite-meta{color:#556b7a;font-size:13px;white-space:pre-wrap}.compact-action{font-size:14px;padding:11px;background:#57758c}.small-note{font-size:12px;color:#65727c}
 </style>
 </head>
 <body><div class="container">
@@ -28,6 +29,13 @@
   <button class="secondary" onclick="searchJstage()">J-STAGEで検索（日本語）</button>
   <button class="green" onclick="searchBoth()">国内・海外を同時検索</button>
   <div class="row"><label for="resultCount" style="margin:5px 0;flex:1">取得論文数</label><select id="resultCount"><option value="5" selected>5件（推奨）</option><option value="10">10件</option><option value="20">20件</option></select></div>
+  <details><summary>詳細検索フィルター（PubMed）</summary>
+   <div class="filter-grid"><label for="filterYears">発表時期<select id="filterYears"><option value="0">指定なし</option><option value="1">過去1年</option><option value="5">過去5年</option><option value="10">過去10年</option></select></label>
+   <label for="filterType">研究種類<select id="filterType"><option value="all">指定なし</option><option value="rct">RCT</option><option value="meta">メタ解析</option><option value="systematic">システマティックレビュー</option><option value="review">レビュー</option><option value="clinical">臨床試験</option></select></label></div>
+   <label class="filter-check"><input id="filterHumans" type="checkbox">ヒト対象（MeSH収載分）</label>
+   <label class="filter-check"><input id="filterFree" type="checkbox">無料公開全文へのリンクがある論文</label>
+   <p class="small-note">PubMedの検索フィールドで絞り込みます。索引付け前の新しい論文はヒト条件で漏れる場合があります。該当結果がない場合は条件を緩めてください。</p>
+  </details>
   <button class="gray" id="readButton" onclick="searchPubmedArticles()">PubMedの論文を日本語で読む</button>
   <div id="status" class="status" aria-live="polite"></div>
   <div id="searchLinks" class="result-links"></div>
@@ -40,8 +48,9 @@
   <div class="soft"><strong>論文比較（2〜5件）</strong><p class="description">チェックボックスで2〜5件選ぶと、取得できた全文を優先して比較します。全文を入手できない論文はAbstract限定で比較し、結果に区別を表示します。</p><div id="compareCount" class="status">選択中：0件</div><button class="green" id="compareButton" onclick="compareSelected()">選択した論文を比較分析（全文優先）</button><div id="compareStatus" class="status"></div><div id="compareOutput" class="ai-output" style="display:none"></div></div>
   <div id="articleResults"><p class="description">「PubMedの論文を日本語で読む」を押すと、ここに結果が表示されます。</p></div>
 </section>
-<section class="section"><h2>検索・翻訳の履歴</h2><p class="description">この端末で開始したジョブのIDを保存しています。再訪時に結果を読み込めます。</p><div id="searchHistory"></div></section>
-<section class="section"><h2>バックグラウンド分析の履歴</h2><p class="description">分析を開始すると、画面を閉じてもCloudflare側で処理を継続します。再訪時に保存したジョブIDから結果を再確認できます（この端末のブラウザに保存）。</p><div id="jobHistory"></div></section>
+<section class="section"><h2>お気に入り論文</h2><p class="description">このiPhone・ブラウザに保存します。タグやメモも保存でき、同じ端末から再確認できます。ブラウザデータ削除や別端末には引き継がれません。</p><div id="favoriteList"></div></section>
+<section class="section"><h2>検索・翻訳の履歴</h2><p class="description">この端末で開始した直近10件のジョブIDを保存しています。D1の結果は現在、自動削除されません。</p><div id="searchHistory"></div></section>
+<section class="section"><h2>バックグラウンド分析の履歴</h2><p class="description">分析を開始すると、画面を閉じてもCloudflare側で処理を継続します。再訪時に保存したジョブIDから結果を再確認できます（この端末のブラウザに直近15件まで保存）。D1の記録は自動削除されません。</p><div id="jobHistory"></div></section>
 <div class="footer">薬学リサーチAI　｜　医学的判断には必ず原著論文を確認してください。翻訳にはGeminiとMyMemoryを使用し、失敗時は自動切替します。MyMemoryは外部翻訳サービスです。患者情報・機密情報は入力しないでください。Europe PMC経由の検索結果の並び順はPubMed公式と異なる場合があります。AI分析は公開全文XML・端末のPDF/TXTを優先し、取得できなければAbstractを使用します。図・画像・補足資料、PDF中の画像文字は一部抽出されません。全文が取得できない論文の結果には「Abstract限定」と明記します。手元のPDFはブラウザ内でテキストを抽出し、分析時にGeminiへ送信します。論文の利用条件を守ってください。</div>
 </div>
 <script>
@@ -51,6 +60,37 @@ const HISTORY_KEY = "pharmaResearchJobsV3";
 const SEARCH_HISTORY_KEY = "pharmaResearchSearchJobsV1";
 const LINK_HISTORY_KEY = "pharmaResearchLinkJobV3";
 const POLL_MS = 3000;
+const FAVORITE_KEY = "pharmaResearchFavoritesV7";
+function favorites() {return loadJSON(FAVORITE_KEY, []);}
+function putFavorite(entry){
+  const rest=favorites().filter(x=>x.pmid!==entry.pmid);
+  saveJSON(FAVORITE_KEY,[entry,...rest].slice(0,100));renderFavorites();
+}
+function removeFavorite(pmid){saveJSON(FAVORITE_KEY,favorites().filter(x=>x.pmid!==pmid));renderFavorites();}
+function getFavorite(pmid){return favorites().find(x=>x.pmid===pmid);}
+function currentFilters(){return {years:Number($("filterYears").value),pubType:$("filterType").value,humans:$("filterHumans").checked,free:$("filterFree").checked};}
+function renderFavorites(){
+  const root=$("favoriteList");root.replaceChildren();
+  const saved=favorites();if(!saved.length){root.appendChild(cardText("description","お気に入りはまだありません。検索結果の☆保存を押してください。"));return;}
+  for(const f of saved){
+    const box=textEl("div","","article");box.append(textEl("strong",f.title),cardText("favorite-meta","PMID："+f.pmid+" ／ タグ："+(f.tag||"未分類")));
+    if(f.titleJa)box.append(cardText("translated",f.titleJa));
+    if(f.abstractJa){const details=document.createElement("details");const sum=document.createElement("summary");sum.textContent="保存したAbstract日本語訳";details.append(sum,cardText("translated",f.abstractJa));box.append(details);}
+    if(f.note)box.append(cardText("favorite-meta","メモ："+f.note));
+    if(f.lastAnalysis){const details=document.createElement("details");const sum=document.createElement("summary");sum.textContent="保存したAI分析結果";details.append(sum,cardText("ai-output",f.lastAnalysis));box.append(details);}
+    const tag=textEl("button","タグ・メモを編集","compact-action");tag.addEventListener("click",()=>{
+      const t=prompt("タグ（例：高血圧、PPI）",f.tag||"");if(t===null)return;
+      const n=prompt("メモ",f.note||"");if(n===null)return;
+      putFavorite({...f,tag:t.slice(0,80),note:n.slice(0,600)});
+    });
+    const evidence=textEl("button","この論文のエビデンスを評価","secondary");
+    const stat=textEl("div","","status"),out=textEl("div","","ai-output");out.style.display="none";
+    evidence.addEventListener("click",()=>submitAnalysis({kind:"analysis",pmid:f.pmid,title:f.title,abstract:f.abstract||"",evaluation:true},"エビデンス評価："+f.title,stat,out,evidence));
+    const remove=textEl("button","お気に入りから削除","gray");remove.addEventListener("click",()=>{if(confirm("お気に入りを削除しますか？"))removeFavorite(f.pmid);});
+    box.append(tag,evidence,remove,stat,out);root.append(box);
+  }
+}
+
 const state = { searchVersion: 0, linkVersion: 0, cards: [], activeJobId: null, cardsJobId: null, bannerOwner: "", jobWatchVersions: new Map(), manualTexts: new Map() };
 const $ = id => document.getElementById(id);
 const textEl = (tag, value, className) => {
@@ -214,7 +254,7 @@ async function watchLink(id, anchor, note, token, q) {
 }
 function cardText(className, value) { return textEl("p", value, className); }
 function updateCompareCount() {
-  $("compareCount").textContent = "選択中：" + document.querySelectorAll(".compare-checkbox:checked").length + "件（2〜5件）";
+  $("compareCount").textContent = "選択中：" + document.querySelectorAll("#articleResults .compare-checkbox:checked").length + "件（2〜5件）";
 }
 function createCard(paper, index) {
   const { pmid, title, abstract } = paper;
@@ -262,7 +302,16 @@ function createCard(paper, index) {
   const analyze = textEl("button", "この論文をAI分析（全文優先）", "green"); analyze.disabled = !pmid; card.appendChild(analyze);
   const jobStatus = textEl("div", "", "status");
   const output = textEl("div", "", "ai-output"); output.style.display = "none";
-  card.append(jobStatus, output);
+  const favButton=textEl("button", getFavorite(pmid)?"★ お気に入り保存済み":"☆ お気に入りに保存", "secondary");
+  favButton.addEventListener("click",()=>{
+    const old=getFavorite(pmid);
+    if(old){removeFavorite(pmid);favButton.textContent="☆ お気に入りに保存";return;}
+    putFavorite({pmid,title,abstract,titleJa:titleJa.textContent.replace(/^タイトル日本語訳：/,""),abstractJa:abstractJa.textContent.replace(/^Abstract日本語訳：/,""),tag:"",note:"",lastAnalysis:"",savedAt:new Date().toISOString()});
+    favButton.textContent="★ お気に入り保存済み";
+  });
+  const evaluate=textEl("button","この論文のエビデンスを評価（全文優先）","secondary");
+  evaluate.addEventListener("click",()=>submitAnalysis({...analysisPayload(pmid,title),evaluation:true},"エビデンス評価："+title,jobStatus,output,evaluate));
+  card.append(favButton,evaluate,jobStatus, output);
   analyze.addEventListener("click", () => submitAnalysis(analysisPayload(pmid,title), "AI分析：" + title, jobStatus, output, analyze));
   const item = { card, cb, titleJa, abstractJa, retry, pmid, title, abstract, pdfStatus };
   retry.addEventListener("click", () => retryTranslation(item));
@@ -334,6 +383,12 @@ function applySnapshot(progress, id) {
         s === "running" ? "翻訳中" : s === "retrying" ? "混雑のため再試行待ち" : "順番待ち";
       node.textContent = label + "：" + shown;
     }
+    const fav=getFavorite(paper.pmid);
+    if(fav){
+      const titleValue=paper.titleJa || fav.titleJa || "";
+      const abstractValue=paper.abstractJa || fav.abstractJa || "";
+      if(titleValue!==fav.titleJa || abstractValue!==fav.abstractJa)putFavorite({...fav,titleJa:titleValue,abstractJa:abstractValue});
+    }
     c.retry.style.display = ["title", "abstract"].some(f => fieldStatus(paper, f) === "failed") ? "block" : "none";
   }
 }
@@ -357,7 +412,7 @@ async function searchPubmedArticles() {
   $("readButton").disabled = true;
   status("PubMed検索をバックグラウンドで開始しています…");
   try {
-    const job = await post("/jobs", { kind: "research", query: q, retmax: Number($("resultCount").value) });
+    const job = await post("/jobs", { kind: "research", query: q, retmax: Number($("resultCount").value), filters:currentFilters() });
     historyAdd(SEARCH_HISTORY_KEY, { id: job.jobId, query: q, time: new Date().toISOString() }, 10);
     renderSearchHistory();
     await watchSearch(job.jobId);
@@ -408,7 +463,7 @@ async function retryTranslation(item) {
   finally { item.retry.disabled = false; }
 }
 async function compareSelected() {
-  const selected = Array.from(document.querySelectorAll(".compare-checkbox:checked")).map(cb => {
+  const selected = Array.from(document.querySelectorAll("#articleResults .compare-checkbox:checked")).map(cb => {
     const card = cb.closest(".article"); return analysisPayload(card.dataset.pmid,card.dataset.title);
   });
   if (selected.length < 2 || selected.length > 5) { $("compareStatus").textContent = "論文を2〜5件選んでください。"; return; }
@@ -439,7 +494,7 @@ async function submitAnalysis(payload, label, stat, out, button) {
   out.textContent = "Queueに送信しています。";
   try {
     const job = await post("/jobs", payload);
-    historyAdd(HISTORY_KEY, { id: job.jobId, label, time: new Date().toISOString() });
+    historyAdd(HISTORY_KEY, { id: job.jobId, label, time: new Date().toISOString(), pmids:(payload.articles||[payload]).map(x=>x.pmid),evaluation:payload.evaluation===true });
     renderAnalysisHistory();
     await watchAnalysis(job.jobId, stat, out);
   } catch (e) { stat.textContent = "分析を開始できませんでした：" + e.message; out.textContent = stat.textContent; }
@@ -461,6 +516,9 @@ async function watchAnalysis(id, stat, out) {
       stat.textContent = `${stage} ／ ${p?.note || "進行中"}\n${articleProgress}\n最終受信：${timeNow()}\nジョブID：${id}`;
       if (job.status === "complete") {
         out.textContent = p?.text || (p ? "分析結果がありません。" : job.result || "結果がありません。");
+        const entry=analysisHistory().find(x=>x.id===id);
+        if(entry && entry.pmids?.length===1 && !entry.evaluation){const fav=getFavorite(entry.pmids[0]);
+          if(fav && p?.text && fav.lastAnalysis!==p.text)putFavorite({...fav,lastAnalysis:p.text});}
         return;
       }
       if (job.status === "failed") {
@@ -486,6 +544,7 @@ async function watchAnalysis(id, stat, out) {
 }
 renderSearchHistory();
 renderAnalysisHistory();
+renderFavorites();
 const recentSearch = searchHistory()[0];
 if (recentSearch) watchSearch(recentSearch.id);
 const recentLink = loadJSON(LINK_HISTORY_KEY, null);
