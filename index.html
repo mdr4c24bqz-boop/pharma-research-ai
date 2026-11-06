@@ -36,13 +36,13 @@
 </section>
 <section class="section">
   <h2>論文検索結果</h2>
-  <div class="info-notice">AI分析は本文ベースです。Europe PMCで公開全文XMLを取得できる論文だけ自動分析します。全文を取得できない論文は、各論文欄で手元のPDF・TXTまたは本文テキストを指定してください。AbstractだけのAI分析は行いません。</div>
-  <div class="soft"><strong>論文比較（2〜5件）</strong><p class="description">チェックボックスで2〜5件選ぶと、公開全文XML（または指定PDF）の内容を比較します。本文を取得できない論文があれば中止し、Abstractだけで比較しません。</p><div id="compareCount" class="status">選択中：0件</div><button class="green" id="compareButton" onclick="compareSelected()">選択した論文の全文を比較分析</button><div id="compareStatus" class="status"></div><div id="compareOutput" class="ai-output" style="display:none"></div></div>
+  <div class="info-notice">AI分析では公開全文を優先します。Europe PMCで取得できない場合はNCBI PMCも確認し、どちらも全文取得できないときはAbstract限定で分析します。結果には「全文」「Abstract限定」を明記します。PDF/TXTを指定した場合はその本文を優先します。</div>
+  <div class="soft"><strong>論文比較（2〜5件）</strong><p class="description">チェックボックスで2〜5件選ぶと、取得できた全文を優先して比較します。全文を入手できない論文はAbstract限定で比較し、結果に区別を表示します。</p><div id="compareCount" class="status">選択中：0件</div><button class="green" id="compareButton" onclick="compareSelected()">選択した論文を比較分析（全文優先）</button><div id="compareStatus" class="status"></div><div id="compareOutput" class="ai-output" style="display:none"></div></div>
   <div id="articleResults"><p class="description">「PubMedの論文を日本語で読む」を押すと、ここに結果が表示されます。</p></div>
 </section>
 <section class="section"><h2>検索・翻訳の履歴</h2><p class="description">この端末で開始したジョブのIDを保存しています。再訪時に結果を読み込めます。</p><div id="searchHistory"></div></section>
 <section class="section"><h2>バックグラウンド分析の履歴</h2><p class="description">分析を開始すると、画面を閉じてもCloudflare側で処理を継続します。再訪時に保存したジョブIDから結果を再確認できます（この端末のブラウザに保存）。</p><div id="jobHistory"></div></section>
-<div class="footer">薬学リサーチAI　｜　医学的判断には必ず原著論文を確認してください。翻訳にはGeminiとMyMemoryを使用し、失敗時は自動切替します。MyMemoryは外部翻訳サービスです。患者情報・機密情報は入力しないでください。Europe PMC経由の検索結果の並び順はPubMed公式と異なる場合があります。AI全文分析は公開全文XMLか端末で読み込んだPDF/TXTを対象とします。図・画像・補足資料、PDF中の画像文字は一部抽出されません。全文取得できない場合、Abstract分析への自動切替はしません。手元のPDFはブラウザ内でテキストを抽出し、分析時にGeminiへ送信します。論文の利用条件を守ってください。</div>
+<div class="footer">薬学リサーチAI　｜　医学的判断には必ず原著論文を確認してください。翻訳にはGeminiとMyMemoryを使用し、失敗時は自動切替します。MyMemoryは外部翻訳サービスです。患者情報・機密情報は入力しないでください。Europe PMC経由の検索結果の並び順はPubMed公式と異なる場合があります。AI分析は公開全文XML・端末のPDF/TXTを優先し、取得できなければAbstractを使用します。図・画像・補足資料、PDF中の画像文字は一部抽出されません。全文が取得できない論文の結果には「Abstract限定」と明記します。手元のPDFはブラウザ内でテキストを抽出し、分析時にGeminiへ送信します。論文の利用条件を守ってください。</div>
 </div>
 <script>
 "use strict";
@@ -90,7 +90,7 @@ function phaseLabel(phase) {
     "pubmed-fetch": "PubMed原文の取得", "europepmc-fallback": "代替APIで原文取得",
     translation: "タイトル・Abstractの翻訳", "analysis-preparing": "分析準備",
     "analysis-running": "AI分析・論文比較", "analysis-retry": "AI分析の再試行待ち",
-    "fulltext-lookup": "公開全文XML・手動PDFの本文取得", "fulltext-extract": "論文本文の分割AI分析", "fulltext-final": "本文全体の統合評価・論文比較",
+    "fulltext-lookup": "全文取得（Europe PMC→NCBI PMC→Abstract）", "fulltext-extract": "論文本文の分割AI分析", "fulltext-final": "本文全体の統合評価・論文比較",
     done: "全行程が完了", failed: "失敗"
   })[phase] || "進行状況を確認中";
 }
@@ -223,7 +223,7 @@ function createCard(paper, index) {
   const label = document.createElement("label");
   const cb = document.createElement("input"); cb.type = "checkbox"; cb.className = "compare-checkbox";
   cb.disabled = !pmid; cb.addEventListener("change", updateCompareCount);
-  label.append(cb, document.createTextNode("この論文を全文比較の対象に選択"));
+  label.append(cb, document.createTextNode("この論文を比較の対象に選択"));
   card.append(label, textEl("h3", (index + 1) + ". " + title), cardText("original", "タイトル原文：" + title));
   const titleJa = cardText("translated", "タイトル日本語訳：翻訳待ち"); card.appendChild(titleJa);
   card.append(textEl("strong", "Abstract（要旨）"), cardText("original", abstract || "Abstractの登録なし"));
@@ -231,7 +231,7 @@ function createCard(paper, index) {
   const retry = textEl("button", "失敗した翻訳を再試行", "secondary"); retry.style.display = "none"; card.appendChild(retry);
   card.appendChild(cardText("tiny", "PMID：" + (pmid || "不明")));
   if (pmid) link(card, "PubMedで原文を確認する", "https://pubmed.ncbi.nlm.nih.gov/" + encodeURIComponent(pmid) + "/");
-  card.appendChild(cardText("div", "AI分析はAbstractではなく、取得した本文全体を使用します。公開全文がない論文は、以下からPDF/TXTを選択してください。", "description"));
+  card.appendChild(cardText("div", "全文取得を優先し、取得できない場合はAbstract限定でAI分析します。必要に応じてPDF/TXTを指定できます。", "description"));
   const details=document.createElement("details");
   const summary=document.createElement("summary"); summary.textContent="手元のPDF・TXTまたは本文テキストを指定（任意）";details.appendChild(summary);
   const picker=document.createElement("input");picker.type="file";picker.accept=".pdf,.txt,application/pdf,text/plain";
@@ -259,11 +259,11 @@ function createCard(paper, index) {
     catch(e){pdfStatus.textContent="入力エラー："+e.message;}
   });
   card.appendChild(details);
-  const analyze = textEl("button", "この論文の全文をAI分析", "green"); analyze.disabled = !pmid; card.appendChild(analyze);
+  const analyze = textEl("button", "この論文をAI分析（全文優先）", "green"); analyze.disabled = !pmid; card.appendChild(analyze);
   const jobStatus = textEl("div", "", "status");
   const output = textEl("div", "", "ai-output"); output.style.display = "none";
   card.append(jobStatus, output);
-  analyze.addEventListener("click", () => submitAnalysis(analysisPayload(pmid,title), "全文分析：" + title, jobStatus, output, analyze));
+  analyze.addEventListener("click", () => submitAnalysis(analysisPayload(pmid,title), "AI分析：" + title, jobStatus, output, analyze));
   const item = { card, cb, titleJa, abstractJa, retry, pmid, title, abstract, pdfStatus };
   retry.addEventListener("click", () => retryTranslation(item));
   return item;
@@ -276,7 +276,7 @@ function setManualText(pmid,text,name){
 }
 function analysisPayload(pmid,title){
   const manual=state.manualTexts.get(pmid);
-  return {kind:"analysis",pmid,title,...(manual?{manualText:manual.text,manualFileName:manual.name}:{})};
+  return {kind:"analysis",pmid,title,abstract:document.querySelector(`.article[data-pmid="${pmid}"]`)?.dataset.abstract||"",...(manual?{manualText:manual.text,manualFileName:manual.name}:{})};
 }
 async function extractPdfText(file){
   // PDF.js で端末内の選択可能文字を読み取る。スキャン画像のOCRは対象外。
@@ -332,8 +332,7 @@ function applySnapshot(progress, id) {
       const error = paper[field + "Error"] || paper.translationError || "";
       const shown = s === "complete" ? value : s === "failed" ? "取得できませんでした（" + error + "）" :
         s === "running" ? "翻訳中" : s === "retrying" ? "混雑のため再試行待ち" : "順番待ち";
-      const provider = s === "complete" && paper[field + "Provider"] ? "（" + paper[field + "Provider"] + "）" : "";
-      node.textContent = label + provider + "：" + shown;
+      node.textContent = label + "：" + shown;
     }
     c.retry.style.display = ["title", "abstract"].some(f => fieldStatus(paper, f) === "failed") ? "block" : "none";
   }
@@ -413,7 +412,7 @@ async function compareSelected() {
     const card = cb.closest(".article"); return analysisPayload(card.dataset.pmid,card.dataset.title);
   });
   if (selected.length < 2 || selected.length > 5) { $("compareStatus").textContent = "論文を2〜5件選んでください。"; return; }
-  await submitAnalysis({ kind:"analysis", articles: selected }, "全文比較：" + selected.length + "件", $("compareStatus"), $("compareOutput"), $("compareButton"));
+  await submitAnalysis({ kind:"analysis", articles: selected }, "比較分析：" + selected.length + "件", $("compareStatus"), $("compareOutput"), $("compareButton"));
 }
 function analysisHistory() { return loadJSON(HISTORY_KEY, []); }
 function renderAnalysisHistory() {
@@ -458,15 +457,15 @@ async function watchAnalysis(id, stat, out) {
       failures = 0;
       globalProgress("analysis:" + id, "AI分析・論文比較", job, p);
       const stage = phaseLabel(p?.phase || (job.status === "queued" ? "queued" : "analysis-running"));
-      const articleProgress=(p?.articles||[]).map((a,i)=>`${i+1}件目 PMID ${a.pmid}：${a.status}（本文${a.chars||0}文字、分析${a.analyzed||0}/${a.chunks||0}部分）${a.reason ? " / "+a.reason : ""}`).join("\n");
+      const articleProgress=(p?.articles||[]).map((a,i)=>`${i+1}件目 PMID ${a.pmid}：${a.status}（${a.mode==="abstract"?"Abstract限定":"本文"}${a.chars||0}文字、分析${a.analyzed||0}/${a.chunks||0}部分）${a.reason ? " / "+a.reason : ""}`).join("\n");
       stat.textContent = `${stage} ／ ${p?.note || "進行中"}\n${articleProgress}\n最終受信：${timeNow()}\nジョブID：${id}`;
       if (job.status === "complete") {
         out.textContent = p?.text || (p ? "分析結果がありません。" : job.result || "結果がありません。");
         return;
       }
       if (job.status === "failed") {
-        out.replaceChildren(textEl("p", "全文AI分析を完了できませんでした：" + (job.error || "詳細不明")));
-        if((p?.articles||[]).some(a=>a.status==="unavailable"))out.appendChild(cardText("description","取得できない論文は、検索結果の「手元のPDF・TXT」を指定してから新しく分析してください。Abstract分析への自動切替はありません。"));
+        out.replaceChildren(textEl("p", "AI分析を完了できませんでした：" + (job.error || "詳細不明")));
+        if((p?.articles||[]).some(a=>a.status==="unavailable"))out.appendChild(cardText("description","全文もAbstractも取得できない論文は、検索結果のPDF・TXTを指定してから再分析してください。"));
         const retry = textEl("button", "この分析だけバックグラウンドで再試行", "green");
         retry.addEventListener("click", async () => {
           retry.disabled = true;
