@@ -4,15 +4,37 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#245b83">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./icon-192.png">
 <title>薬学リサーチAI</title>
 <style>
 *{box-sizing:border-box}body{margin:0;padding:18px;background:#f3f6f9;color:#263238;font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN",sans-serif}
 .container{max-width:720px;margin:auto}h1{color:#245b83;text-align:center;font-size:27px;margin:12px 0 22px}h2{color:#245b83;font-size:20px;margin:4px 0 20px}h3{font-size:17px;color:#245b83}.section{padding:22px 18px;background:#fff;border-radius:16px;margin:18px 0;box-shadow:0 3px 12px #1d2b360d}label{display:block;font-weight:700;margin:12px 0 8px}input[type=text],select{width:100%;padding:14px;border:1px solid #b9c9d5;border-radius:10px;font-size:16px;background:#fff}button{width:100%;padding:15px;margin:7px 0;border:0;border-radius:10px;background:#245b83;color:white;font-size:16px;font-weight:700;cursor:pointer}button.secondary{background:#477b9f}button.green{background:#287b65}button.gray{background:#687782}button:disabled{opacity:.55;cursor:not-allowed}.description{font-size:13px;color:#65727c;line-height:1.7}.status{color:#287b65;margin:12px 0;line-height:1.7;white-space:pre-wrap}.error{color:#b02525}.article{border:1px solid #dce3e9;border-radius:12px;background:#fff;padding:17px;margin:15px 0;overflow-wrap:anywhere}.original{color:#526472;white-space:pre-wrap;font-size:14px;line-height:1.6}.translated{white-space:pre-wrap;line-height:1.7}.muted{color:#6c7c88}.ai-output{white-space:pre-wrap;line-height:1.8;background:#f0f6f9;padding:15px;margin:10px 0;border-radius:9px;overflow-wrap:anywhere}a{color:#166a9e;overflow-wrap:anywhere}.soft{border-radius:10px;padding:14px;background:#eef4f8}.article label{font-weight:400;display:flex;gap:9px;align-items:center}.article input[type=checkbox]{width:20px;height:20px;flex:none}.row{display:flex;align-items:center;gap:10px}.row select{max-width:135px}.result-links a{display:block;padding:10px;border-bottom:1px solid #ddd}.tiny{font-size:12px;color:#80909c}.footer{text-align:center;color:#8997a0;font-size:12px;padding:12px}.progress-track{width:100%;height:12px;border-radius:20px;background:#dce8ef;overflow:hidden;margin:12px 0 5px}.progress-bar{height:100%;width:0%;background:#287b65;transition:width .25s ease}.section[hidden]{display:none}textarea{width:100%;min-height:100px;font-size:15px;padding:10px;border:1px solid #b9c9d5;border-radius:8px}input[type=file]{display:block;width:100%;padding:10px;font-size:14px}details{margin:12px 0;padding:9px;border:1px solid #dce3e9;border-radius:9px}summary{cursor:pointer;color:#245b83;font-weight:bold}.info-notice{background:#f3f6f9;border-radius:9px;padding:12px;font-size:13px;line-height:1.7}
 .filter-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.filter-grid label{margin:0;font-size:13px}.filter-grid select{padding:10px;font-size:14px}.filter-check{display:flex;align-items:center;gap:8px;font-size:14px}.filter-check input{width:18px;height:18px}.favorite-meta{color:#556b7a;font-size:13px;white-space:pre-wrap}.compact-action{font-size:14px;padding:11px;background:#57758c}.small-note{font-size:12px;color:#65727c}
+
+.watch-topic{border:1px solid #dce3e9;border-radius:10px;padding:12px;margin:10px 0}.watch-btnrow{display:flex;gap:7px;flex-wrap:wrap}.watch-btnrow button{width:auto;flex:1;min-width:90px;padding:10px}.watch-notice{padding:11px;background:#eff6fa;border-radius:9px;margin:10px 0;font-size:13px;line-height:1.7}.watch-unread{font-weight:bold;color:#287b65}.watch-note{font-size:12px;color:#647887;word-wrap:break-word}.watch-notif{border-bottom:1px solid #dee6eb;padding:10px 0}.watch-notif a{display:block;margin:4px 0}.watch-fields{display:grid;gap:8px}#watchLabel,#watchQuery{width:100%;padding:13px;font-size:16px;border-radius:9px;border:1px solid #b9c9d5}
 </style>
 </head>
 <body><div class="container">
 <h1>薬学リサーチAI</h1>
+
+<section class="section" id="watch-notifications">
+ <h2>🔔 新着論文ウォッチ <span id="watchUnread" class="watch-unread" style="font-size:14px"></span></h2>
+ <p class="description">登録したテーマを毎朝7時ごろPubMedで自動確認します。検索語は日本語でも登録できます。初回確認では既存論文を基準として記録し、2回目以降の新着だけを通知します。</p>
+ <div id="watchStatus" class="status">通知設定を読み込み中…</div>
+ <div class="watch-btnrow"><button id="enablePush" type="button" class="green">iPhoneのプッシュ通知を有効にする</button><button type="button" class="secondary" id="testPush">テスト送信</button><button type="button" class="gray" id="disablePush">通知解除</button></div>
+ <p class="watch-note">iPhoneではSafariから「ホーム画面に追加」し、追加したアイコンから開いた状態で通知を許可してください。ブラウザ内の普通のタブからは許可できない場合があります。</p>
+ <div class="watch-fields">
+  <label for="watchLabel">テーマ名</label><input id="watchLabel" type="text" maxlength="100" placeholder="例：PPIと骨折リスク">
+  <label for="watchQuery">PubMed検索ワード（日本語・英語）</label><textarea id="watchQuery" rows="2" maxlength="240" placeholder="例：PPI長期服用と骨折リスク"></textarea>
+  <input type="hidden" id="watchEditId" value="">
+  <div class="watch-btnrow"><button type="button" class="green" id="watchSave">テーマを登録</button><button type="button" class="gray" id="watchCancel" style="display:none">編集をキャンセル</button></div>
+ </div>
+ <h3>登録テーマ（最大10件）</h3><div id="watchTopics"></div>
+ <div class="row" style="justify-content:space-between;align-items:center"><h3>アプリ内通知</h3><button type="button" class="secondary" style="width:auto;padding:10px" id="watchRead">すべて既読にする</button></div>
+ <div id="watchNotifications"><p class="description">新着論文はまだありません。</p></div>
+</section>
+
 <section class="section" id="globalProgress" hidden aria-live="polite">
  <h2 style="margin-bottom:10px">全行程のバックグラウンド進捗</h2>
  <strong id="globalProgressTitle">処理待ち</strong>
@@ -49,8 +71,8 @@
   <div id="articleResults"><p class="description">「PubMedの論文を日本語で読む」を押すと、ここに結果が表示されます。</p></div>
 </section>
 <section class="section"><h2>お気に入り論文</h2><p class="description">このiPhone・ブラウザに保存します。タグやメモも保存でき、同じ端末から再確認できます。ブラウザデータ削除や別端末には引き継がれません。</p><div id="favoriteList"></div></section>
-<section class="section"><h2>検索・翻訳の履歴</h2><p class="description">この端末で開始した直近10件のジョブIDを保存しています。D1の結果は現在、自動削除されません。</p><div id="searchHistory"></div></section>
-<section class="section"><h2>バックグラウンド分析の履歴</h2><p class="description">分析を開始すると、画面を閉じてもCloudflare側で処理を継続します。再訪時に保存したジョブIDから結果を再確認できます（この端末のブラウザに直近15件まで保存）。D1の記録は自動削除されません。</p><div id="jobHistory"></div></section>
+<section class="section"><h2>検索・翻訳の履歴</h2><p class="description">この端末で開始した直近10件のジョブIDを保存しています。D1の完了済み履歴は30日経過後に自動整理されます。</p><div id="searchHistory"></div></section>
+<section class="section"><h2>バックグラウンド分析の履歴</h2><p class="description">分析を開始すると、画面を閉じてもCloudflare側で処理を継続します。再訪時に保存したジョブIDから結果を再確認できます（この端末のブラウザに直近15件まで保存）。D1の完了済み記録は30日経過後に自動整理されます。</p><div id="jobHistory"></div></section>
 <div class="footer">薬学リサーチAI　｜　医学的判断には必ず原著論文を確認してください。翻訳にはGeminiとMyMemoryを使用し、失敗時は自動切替します。MyMemoryは外部翻訳サービスです。患者情報・機密情報は入力しないでください。Europe PMC経由の検索結果の並び順はPubMed公式と異なる場合があります。AI分析は公開全文XML・端末のPDF/TXTを優先し、取得できなければAbstractを使用します。図・画像・補足資料、PDF中の画像文字は一部抽出されません。全文が取得できない論文の結果には「Abstract限定」と明記します。手元のPDFはブラウザ内でテキストを抽出し、分析時にGeminiへ送信します。論文の利用条件を守ってください。</div>
 </div>
 <script>
@@ -561,4 +583,114 @@ if (recentLink && recentLink.id) {
     watchLink(recentLink.id, a, note, ++state.linkVersion, recentLink.query);
   }
 }
+
+// ===== v8: 新着論文ウォッチ・Web Push =====
+const WATCH_CLIENT_KEY='pharmaWatchClientTokenV8';
+const WATCH_API_TIMEOUT=60000;
+let watchBusy=false;
+let watchTopics=[];
+function watchClientToken(){
+ let token=localStorage.getItem(WATCH_CLIENT_KEY);
+ if(!token||!/^[0-9a-f]{64}$/.test(token)){
+   const b=crypto.getRandomValues(new Uint8Array(32));
+   token=Array.from(b,x=>x.toString(16).padStart(2,'0')).join('');
+   localStorage.setItem(WATCH_CLIENT_KEY,token);
+ }
+ return token;
+}
+async function watchRequest(path,method='GET',body=null){
+ const controller=new AbortController();const t=setTimeout(()=>controller.abort(),WATCH_API_TIMEOUT);
+ try{
+  const r=await fetch(API+path,{method,headers:{Authorization:'Bearer '+watchClientToken(),...(body===null?{}:{'Content-Type':'application/json'})},body:body===null?undefined:JSON.stringify(body),cache:'no-store',signal:controller.signal});
+  const data=await r.json();if(!r.ok)throw Error(data.error||'HTTP '+r.status);return data;
+ }finally{clearTimeout(t);}
+}
+function watchStatus(text,isError=false){const e=$('watchStatus');e.textContent=text;e.classList.toggle('error',isError);}
+function watchBusySet(v){watchBusy=v;$('watchSave').disabled=v;$('enablePush').disabled=v;}
+function safePubmed(id){return 'https://pubmed.ncbi.nlm.nih.gov/'+encodeURIComponent(id)+'/';}
+function watchTag(name,cls='',text=''){const e=document.createElement(name);if(cls)e.className=cls;if(text)e.textContent=text;return e;}
+async function loadWatch(){
+ try{
+  await watchRequest('/watch/client/init','POST',{});
+  const [topics,notifications,config]=await Promise.all([watchRequest('/watch/topics'),watchRequest('/watch/notifications'),watchRequest('/watch/push/key')]);
+  watchTopics=topics.topics||[];showWatchTopics();showWatchNotifications(notifications.notifications||[]);
+  const support=('serviceWorker' in navigator)&&('PushManager' in window)&&('Notification' in window);
+  const current=typeof Notification!=='undefined'?Notification.permission:'unsupported';
+  watchStatus('ウォッチ機能は有効です。プッシュ通知：'+(config.enabled?'送信設定済み':'送信用Secret未設定')+' ／ この端末：'+current+(support?'':'（Web Push非対応）'));
+ }catch(e){watchStatus('通知一覧を読み込めません：'+e.message,true);}
+}
+function showWatchTopics(){
+ const root=$('watchTopics');root.replaceChildren();
+ if(!watchTopics.length){root.append(watchTag('p','description','まだ登録テーマがありません。'));return;}
+ for(const t of watchTopics){
+  const card=watchTag('div','watch-topic');card.append(watchTag('strong','',t.label));
+  card.append(watchTag('p','watch-note','検索語：'+t.query));
+  if(t.query!==t.english_query)card.append(watchTag('p','watch-note','PubMed検索：'+t.english_query));
+  card.append(watchTag('p','watch-note',t.last_error?'前回の確認エラー：'+t.last_error:(!t.initialized?'初回の自動確認待ち':('前回確認：'+(t.last_checked_at||'未実行')+'（UTC）'))));
+  const buttons=watchTag('div','watch-btnrow');
+  const active=watchTag('button','secondary',t.enabled?'通知停止':'通知再開');
+  active.addEventListener('click',async()=>{active.disabled=true;try{await watchRequest('/watch/topics/'+t.id,'PATCH',{enabled:!t.enabled});await loadWatch();}catch(e){watchStatus(e.message,true);active.disabled=false;}});
+  const edit=watchTag('button','secondary','編集');edit.addEventListener('click',()=>{$('watchLabel').value=t.label;$('watchQuery').value=t.query;$('watchEditId').value=t.id;$('watchSave').textContent='変更を保存';$('watchCancel').style.display='block';$('watchLabel').focus();});
+  const del=watchTag('button','gray','削除');del.addEventListener('click',async()=>{if(!confirm('このテーマと通知履歴を削除しますか？'))return;del.disabled=true;try{await watchRequest('/watch/topics/'+t.id,'DELETE');await loadWatch();}catch(e){watchStatus(e.message,true);del.disabled=false;}});
+  buttons.append(active,edit,del);card.append(buttons);root.append(card);
+ }
+}
+function showWatchNotifications(rows){
+ const root=$('watchNotifications');root.replaceChildren();
+ const unread=rows.filter(r=>!r.read_at).length;
+ $('watchUnread').textContent=unread?'未読 '+unread+'件':'';
+ if(!rows.length){root.append(watchTag('p','description','まだ新着論文はありません。初回自動確認では既存論文を通知しません。'));return;}
+ for(const r of rows){
+  const item=watchTag('div','watch-notif');item.append(watchTag('strong','',(!r.read_at?'● ':'')+(r.topic_label||'登録テーマ')));
+  const a=watchTag('a','',r.title);a.href=safePubmed(r.pmid);a.target='_blank';a.rel='noopener noreferrer';item.append(a);
+  item.append(watchTag('p','watch-note','PMID：'+r.pmid+' ／ 検出：'+r.created_at+' UTC'));root.append(item);
+ }
+}
+async function saveWatch(){
+ if(watchBusy)return;
+ const label=$('watchLabel').value.trim(),query=$('watchQuery').value.trim(),id=$('watchEditId').value;
+ if(!label||!query){watchStatus('テーマ名と検索語を入力してください。',true);return;}
+ watchBusySet(true);watchStatus('検索語を保存しています。日本語の場合、PubMed向けに英訳します…');
+ try{
+  if(id)await watchRequest('/watch/topics/'+id,'PATCH',{label,query});
+  else await watchRequest('/watch/topics','POST',{label,query});
+  resetWatchEditor();await loadWatch();
+  watchStatus('保存しました。次回の毎朝7時の自動確認から反映されます。');
+ }catch(e){watchStatus('保存に失敗：'+e.message,true);}finally{watchBusySet(false);}
+}
+function resetWatchEditor(){$('watchEditId').value='';$('watchLabel').value='';$('watchQuery').value='';$('watchSave').textContent='テーマを登録';$('watchCancel').style.display='none';}
+function fromBase64URL(base64){const s=base64.replace(/-/g,'+').replace(/_/g,'/');const bin=atob(s+'='.repeat((4-s.length%4)%4));return Uint8Array.from(bin,ch=>ch.charCodeAt(0));}
+async function turnOnPush(){
+ if(!('serviceWorker' in navigator)||!('PushManager' in window)||!('Notification' in window)){watchStatus('この環境はWeb Push非対応です。Safariで開いてホーム画面に追加してください。',true);return;}
+ // iOSはユーザー操作と同じイベントで権限要求する必要がある
+ const permissionPromise=Notification.requestPermission();
+ watchBusySet(true);
+ try{
+  const permission=await permissionPromise;
+  if(permission!=='granted')throw Error('通知が許可されませんでした。iPhone設定の通知を確認してください。');
+  const config=await watchRequest('/watch/push/key');if(!config.enabled)throw Error('CloudflareのVAPID_PRIVATE_KEYがまだ設定されていません。');
+  const registration=await navigator.serviceWorker.ready;
+  let sub=await registration.pushManager.getSubscription();
+  if(!sub)sub=await registration.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:fromBase64URL(config.publicKey)});
+  await watchRequest('/watch/push/subscribe','POST',sub.toJSON());
+  watchStatus('プッシュ通知を有効化しました。新着論文があればホーム画面アプリへ通知されます。');
+ }catch(e){watchStatus('プッシュ通知を設定できません：'+e.message,true);}finally{watchBusySet(false);}
+}
+async function turnOffPush(){
+ try{await watchRequest('/watch/push/unsubscribe','POST',{});
+  if('serviceWorker' in navigator){const reg=await navigator.serviceWorker.ready;const sub=await reg.pushManager?.getSubscription();if(sub)await sub.unsubscribe();}
+  watchStatus('プッシュ通知を解除しました。アプリ内通知は引き続き表示します。');
+ }catch(e){watchStatus(e.message,true);}
+}
+$('watchSave').addEventListener('click',saveWatch);
+$('watchCancel').addEventListener('click',resetWatchEditor);
+$('enablePush').addEventListener('click',turnOnPush);
+$('disablePush').addEventListener('click',turnOffPush);
+$('testPush').addEventListener('click',async()=>{try{watchStatus('テスト通知を送信しています…');await watchRequest('/watch/push/test','POST',{});watchStatus('送信先で受け付けられました。iPhoneの通知をご確認ください。');}catch(e){watchStatus('テスト送信に失敗：'+e.message,true);}});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)loadWatch();});
+setInterval(()=>{if(!document.hidden)loadWatch();},120000);
+$('watchRead').addEventListener('click',async()=>{try{await watchRequest('/watch/notifications/read','POST',{});await loadWatch();}catch(e){watchStatus(e.message,true);}});
+if('serviceWorker' in navigator){navigator.serviceWorker.register('./sw.js',{scope:'./'}).catch(e=>console.warn('Service Worker:',e));}
+loadWatch();
+
 </script></body></html>
