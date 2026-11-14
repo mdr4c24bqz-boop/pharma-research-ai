@@ -480,7 +480,7 @@ async function translateArticle(body, env) {
 
 // 全行程の進捗は jobs.result に保存し、クライアントは短いGETで3秒ごとに参照する。
 // 外部APIの単一HTTP要求を継続して待たず、Queueに次の短い仕事を渡す。
-const VERSION = "research-assistant-v9-2-japanese-watch-20261114";
+const VERSION = "research-assistant-v9-3-trending-20261114";
 const VALID_COUNTS = [5, 10, 20];
 const STAGE_MAX_ATTEMPTS = 3;
 const ANALYSIS_MAX_ATTEMPTS = 5;
@@ -1173,7 +1173,7 @@ const VAPID_PUBLIC_KEY = "BPc-QG5z0_pj0vO9ZBcmvitJlc2zWa_IgX9rJDrB9VzCpL8EVSiNOL
 const VAPID_PUBLIC_X = "9z5AbnPT-mPS871kFya-K0mVzbNZr8iBf2skOsH1XMI";
 const VAPID_PUBLIC_Y = "pL8EVSiNOLFBY_OUASPpVVjPj2Y0lCHi5BzvVNF4cz4";
 const WATCH_APP_URL = "https://mdr4c24bqz-boop.github.io/pharma-research-ai/";
-const WATCH_MAX_TOPICS = 10;
+const WATCH_MAX_TOPICS = 30;
 const WATCH_MAX_NOTIFICATIONS = 200;
 const watchTables = new WeakSet();
 async function ensureWatchTables(env) {
@@ -1185,7 +1185,10 @@ async function ensureWatchTables(env) {
     `CREATE TABLE IF NOT EXISTS watch_seen (topic_id TEXT NOT NULL, pmid TEXT NOT NULL, first_seen_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY(topic_id,pmid))`,
     `CREATE TABLE IF NOT EXISTS watch_notifications (id INTEGER PRIMARY KEY AUTOINCREMENT, client_id TEXT NOT NULL, topic_id TEXT NOT NULL, pmid TEXT NOT NULL, title TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, read_at TEXT, UNIQUE(topic_id,pmid))`,
     `CREATE INDEX IF NOT EXISTS idx_watch_notifications_client ON watch_notifications(client_id,id)`,
-    `CREATE TABLE IF NOT EXISTS watch_push (client_id TEXT PRIMARY KEY, endpoint TEXT NOT NULL, p256dh TEXT NOT NULL, auth_key TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`
+    `CREATE TABLE IF NOT EXISTS watch_push (client_id TEXT PRIMARY KEY, endpoint TEXT NOT NULL, p256dh TEXT NOT NULL, auth_key TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
+    `CREATE TABLE IF NOT EXISTS trending_papers (pmid TEXT PRIMARY KEY, title TEXT NOT NULL, title_ja TEXT, category TEXT NOT NULL, published TEXT, citations INTEGER NOT NULL DEFAULT 0, study_type TEXT, score REAL, reason TEXT, abstract_en TEXT, abstract_ja TEXT, abstract_source TEXT, discovered_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
+    `CREATE INDEX IF NOT EXISTS idx_trending_category ON trending_papers(category,score)`,
+    `CREATE TABLE IF NOT EXISTS trending_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`
   ];
   for (const sql of statements) await env.DB.prepare(sql).run();
   // 既存v8の通知データを消さずに拡張する。
@@ -1234,9 +1237,9 @@ async function signedVapid(endpoint,env){
  return token+'.'+b64u(signature);
 }
 function validPushEndpoint(endpoint){try{const url=new URL(endpoint);const host=url.hostname.toLowerCase();return url.protocol==='https:'&&url.username===''&&url.password===''&&[ 'push.apple.com','fcm.googleapis.com','updates.push.services.mozilla.com','updates-autopush.stage.mozaws.net' ].some(s=>host===s||host.endsWith('.'+s))&&endpoint.length<1500;}catch{return false;}}
-async function sendWebPush(sub,env,title,body){
+async function sendWebPush(sub,env,title,body,hash='#watch-notifications'){
  if(!validPushEndpoint(sub.endpoint))throw apiError('不正なPush送信先です。',400,'PUSH_ENDPOINT');
- const binary=await makeWebPushPayload(sub,{title,body,url:WATCH_APP_URL+'#watch-notifications'});
+ const binary=await makeWebPushPayload(sub,{title,body,url:WATCH_APP_URL+hash});
  const jwt=await signedVapid(sub.endpoint,env);
  const response=await fetch(sub.endpoint,{method:'POST',headers:{'Authorization':`vapid t=${jwt}, k=${VAPID_PUBLIC_KEY}`,'Content-Type':'application/octet-stream','Content-Encoding':'aes128gcm','TTL':'86400','Urgency':'normal'},body:binary});
  return response.status;
@@ -1253,13 +1256,52 @@ async function watchApi(request,env,url,origin){
    return json({ok:true},200,origin);
   }
   const cid=await watchClient(request,env);
+  // 注目論文：ユーザー固有の通知購読を確認したうえで共通の公開論文一覧を返す。
+  if(path==='/watch/trending'&&request.method==='GET'){
+   const days=url.searchParams.get('days')==='90'?90:30;
+   const category=url.searchParams.get('category')||'all';
+   const cutoff=new Date(Date.now()-days*86400000).toISOString().slice(0,10);
+   const base=category==='all'
+    ?await env.DB.prepare('SELECT pmid,title,title_ja,category,published,citations,study_type,score,reason,updated_at FROM trending_papers WHERE published>=? ORDER BY score DESC, published DESC LIMIT 70').bind(cutoff).all()
+    :await env.DB.prepare('SELECT pmid,title,title_ja,category,published,citations,study_type,score,reason,updated_at FROM trending_papers WHERE published>=? AND category=? ORDER BY score DESC,published DESC LIMIT 40').bind(cutoff,category.slice(0,40)).all();
+   const m=await env.DB.prepare("SELECT value,updated_at FROM trending_meta WHERE key='last_success'").first();
+   const err=await env.DB.prepare("SELECT value FROM trending_meta WHERE key='last_error'").first();
+   return json({papers:base.results||[],lastUpdated:m?.value||null,lastError:err?.value||null,days},200,origin);
+  }
+  if(path==='/watch/trending/refresh'&&request.method==='POST'){
+   // 手動更新はシステム全体で6時間に一度まで。失敗時の再試行は可能。
+   const last=await env.DB.prepare("SELECT value FROM trending_meta WHERE key='last_attempt'").first();
+   const ms=Date.parse(last?.value||'');
+   if(Number.isFinite(ms)&&Date.now()-ms<6*3600000)throw apiError('注目論文の更新は6時間に1回までです。',429,'TRENDING_COOLDOWN');
+   await env.DB.prepare("INSERT INTO trending_meta(key,value) VALUES('last_attempt',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=CURRENT_TIMESTAMP").bind(new Date().toISOString()).run();
+   const result=await refreshTrending(env,false);
+   return json(result,200,origin);
+  }
+  const trendingTitle=path.match(/^\/watch\/trending\/(\d+)\/title-ja$/);
+  if(trendingTitle&&request.method==='POST'){
+   const row=await env.DB.prepare('SELECT pmid,title,title_ja FROM trending_papers WHERE pmid=?').bind(trendingTitle[1]).first();
+   if(!row)throw apiError('論文が見つかりません。',404,'TRENDING_MISSING');
+   const titleJa=row.title_ja||(await translateDual(env,row.title,'en-ja','mymemory',{timeoutMs:12000})).text.slice(0,1200);
+   if(!row.title_ja)await env.DB.prepare('UPDATE trending_papers SET title_ja=? WHERE pmid=?').bind(titleJa,row.pmid).run();
+   return json({titleJa},200,origin);
+  }
+  const trendingDetail=path.match(/^\/watch\/trending\/(\d+)\/detail$/);
+  if(trendingDetail&&request.method==='GET'){
+   const row=await env.DB.prepare('SELECT * FROM trending_papers WHERE pmid=?').bind(trendingDetail[1]).first();
+   if(!row)throw apiError('論文が見つかりません。',404,'TRENDING_MISSING');
+   let titleJa=row.title_ja||'',abstractEn=row.abstract_en||'',abstractJa=row.abstract_ja||'',source=row.abstract_source||'',abstractError='';
+   if(!titleJa){try{titleJa=(await translateDual(env,row.title,'en-ja','mymemory',{timeoutMs:12000})).text.slice(0,1200);await env.DB.prepare('UPDATE trending_papers SET title_ja=? WHERE pmid=?').bind(titleJa,row.pmid).run();}catch(e){abstractError='タイトルの翻訳：'+errorMessage(e);}}
+   if(!abstractEn){try{const a=await fetchAbstractByPMID(row.pmid);abstractEn=a.text.slice(0,24000);source=a.source;await env.DB.prepare('UPDATE trending_papers SET abstract_en=?,abstract_source=? WHERE pmid=?').bind(abstractEn,source,row.pmid).run();}catch(e){abstractError+=(abstractError?' ／ ':'')+'Abstract取得：'+errorMessage(e);}}
+   if(abstractEn&&!abstractJa){try{abstractJa=(await translateDual(env,abstractEn,'en-ja','gemini',{timeoutMs:14000})).text.slice(0,30000);await env.DB.prepare('UPDATE trending_papers SET abstract_ja=? WHERE pmid=?').bind(abstractJa,row.pmid).run();}catch(e){abstractError+=(abstractError?' ／ ':'')+'Abstract翻訳：'+errorMessage(e);}}
+   return json({id:row.pmid,pmid:row.pmid,title:row.title,titleJa,abstractEn,abstractJa,source,abstractError},200,origin);
+  }
   if(path==='/watch/topics'&&request.method==='GET'){
    const rows=await env.DB.prepare('SELECT id,label,query,english_query,enabled,initialized,last_checked_at,last_error FROM watch_topics WHERE client_id=? ORDER BY created_at ASC').bind(cid).all();
    return json({topics:rows.results||[]},200,origin);
   }
   if(path==='/watch/topics'&&request.method==='POST'){
    const count=await env.DB.prepare('SELECT count(*) AS n FROM watch_topics WHERE client_id=?').bind(cid).first();
-   if(Number(count?.n||0)>=WATCH_MAX_TOPICS)throw apiError('テーマは最大10件まで登録できます。',400,'TOPICS_LIMIT');
+   if(Number(count?.n||0)>=WATCH_MAX_TOPICS)throw apiError('テーマは最大30件まで登録できます。',400,'TOPICS_LIMIT');
    const {label,query}=watchQueryParams(await request.json());
    const english=await watchTranslate(env,query);
    const id=crypto.randomUUID();
@@ -1377,9 +1419,9 @@ async function checkNewPapers(env){
  await ensureWatchTables(env);
  const rows=await env.DB.prepare('SELECT * FROM watch_topics WHERE enabled=1 ORDER BY last_checked_at IS NOT NULL ASC, COALESCE(last_checked_at,created_at) ASC LIMIT 100').all();
  const topics=rows.results||[];
- // APIの負荷・無料枠を抑えるため1回あたり最大20テーマ（次回に残りを処理）。
+ // APIの負荷・無料枠を抑えるため1回あたり最大30テーマ（それを超える場合は次回に処理）。
  const clients=new Map();let ok=0,added=0,failed=0;
- for(const t of topics.slice(0,20)){
+ for(const t of topics.slice(0,30)){
   try{
    const papers=await recentPubmedPapers(t.english_query);
    if(!Number(t.initialized)){
@@ -1416,6 +1458,87 @@ async function checkNewPapers(env){
  await env.DB.prepare(`DELETE FROM watch_seen WHERE rowid IN (SELECT rowid FROM watch_seen WHERE first_seen_at < datetime('now','-180 days') LIMIT 1000)`).run();
  console.log('Watch scan completed',JSON.stringify({ok,added,failed,sent,pushErrors}));
  return {ok,added,failed,sent,pushErrors};
+}
+
+// ===== v9.3: 注目論文（週1回）。OpenAlexの公開書誌情報を使い、全文は保存しない。 =====
+const TRENDING_CATEGORIES = [
+ {name:'循環器',query:'heart failure cardiovascular treatment clinical trial'},
+ {name:'糖尿病',query:'type 2 diabetes GLP-1 SGLT2 clinical trial'},
+ {name:'栄養学',query:'diet nutrition cardiovascular metabolic randomized trial'},
+ {name:'腎臓病',query:'chronic kidney disease drug treatment trial'},
+ {name:'薬物療法',query:'pharmacotherapy adverse events clinical trial'}
+];
+async function trendingSource(category){
+ const since=new Date(Date.now()-90*86400000).toISOString().slice(0,10);
+ const uri=new URL('https://api.openalex.org/works');
+ uri.search=new URLSearchParams({search:category.query,filter:'from_publication_date:'+since+',type:article',sort:'cited_by_count:desc',per_page:'50',select:'id,title,publication_date,cited_by_count,ids,doi'}).toString();
+ const result=JSON.parse(await literatureRequest(uri.toString(),16000,'OpenAlex注目論文検索'));
+ const papers=[];
+ for(const a of result.results||[]){
+  const pmid=String(a?.ids?.pmid||'').match(/pubmed\.ncbi\.nlm\.nih\.gov\/(\d+)/)?.[1];
+  if(!pmid||!a.title||!/^\d{4}-\d{2}-\d{2}$/.test(a.publication_date||''))continue;
+  const cites=Math.max(0,Number(a.cited_by_count||0));
+  const age=Math.max(1,(Date.now()-Date.parse(a.publication_date))/86400000);
+  // 引用数に新しさを加味。因果関係・臨床的重要性の評価には使わない。
+  const score=Math.round((Math.log2(cites+1)*20 + 90/Math.max(14,age)*7)*10)/10;
+  papers.push({pmid,title:a.title.slice(0,700),category:category.name,published:a.publication_date,citations:cites,study_type:'未判定',score,reason:'OpenAlex被引用数'+cites+'件／公開から約'+Math.ceil(age)+'日（注目度の参考値）'});
+  if(papers.length>=12)break;
+ }
+ return papers;
+}
+async function fallbackTrendingSource(category){
+ const params=new URLSearchParams({db:'pubmed',term:'('+category.query+') AND (randomized controlled trial[pt] OR meta-analysis[pt] OR systematic review[ti])',retmax:'25',retmode:'json',sort:'date',datetype:'pdat',reldate:'90',tool:'PharmaResearchAITrending'});
+ const found=JSON.parse(await literatureRequest('https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?'+params,14000,'注目論文PubMed代替検索'));
+ const ids=(found?.esearchresult?.idlist||[]).filter(x=>/^\d+$/.test(x));
+ if(!ids.length)return [];
+ const efetch='https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?'+new URLSearchParams({db:'pubmed',id:ids.join(','),retmode:'xml'});
+ const papers=papersFromXml(await literatureRequest(efetch,14000,'注目論文PubMed詳細'));
+ const summaryUrl='https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?'+new URLSearchParams({db:'pubmed',id:ids.join(','),retmode:'json'});
+ const summary=JSON.parse(await literatureRequest(summaryUrl,14000,'注目論文の発行日確認'));
+ const isoPub=(id)=>{
+  const raw=String(summary?.result?.[id]?.pubdate||'').trim();
+  const match=/^(\d{4})(?:\s+([A-Za-z]{3}))(?:\s+(\d{1,2}))?/.exec(raw);
+  if(!match)return null;
+  const month=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].indexOf(match[2]||'');
+  if(month<0)return null;
+  const day=String(match[3]||'01').padStart(2,'0');
+  const iso=match[1]+'-'+String(month+1).padStart(2,'0')+'-'+day;
+  return !Number.isNaN(Date.parse(iso))?iso:null;
+ };
+ return papers.slice(0,12).flatMap((a,i)=>{const published=isoPub(a.pmid);if(!published)return [];const st=studyPriority(a);return [{pmid:a.pmid,title:a.title.slice(0,700),category:category.name,published,citations:0,study_type:st.studyType,score:30-i,reason:'PubMedの直近90日・研究デザインによる暫定抽出（被引用数は未取得）'}];});
+}
+async function refreshTrending(env,weeklyPush){
+ await ensureWatchTables(env);
+ let categories=0,added=0,failed=0;
+ const errors=[];
+ for(const category of TRENDING_CATEGORIES){
+  try{
+   let papers=[];
+   try{papers=await trendingSource(category);}catch(e){errors.push(category.name+' OpenAlex: '+errorMessage(e).slice(0,90));}
+   if(!papers.length)papers=await fallbackTrendingSource(category);
+   for(const paper of papers){
+    const res=await env.DB.prepare(`INSERT INTO trending_papers(pmid,title,category,published,citations,study_type,score,reason) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(pmid) DO UPDATE SET citations=excluded.citations,score=excluded.score,reason=excluded.reason,updated_at=CURRENT_TIMESTAMP`).bind(paper.pmid,paper.title,paper.category,paper.published,paper.citations,paper.study_type,paper.score,paper.reason).run();
+    if(Number(res?.meta?.changes||0))added++;
+   }
+   categories++;
+  }catch(e){failed++;errors.push(category.name+': '+errorMessage(e).slice(0,150));}
+ }
+ const result={ok:categories>0,categories,failed,processed:added};
+ if(!categories){await env.DB.prepare("INSERT INTO trending_meta(key,value) VALUES('last_error',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=CURRENT_TIMESTAMP").bind(errors.join(' / ').slice(0,1000)).run();throw apiError('注目論文を取得できませんでした。'+errors.join(' / ').slice(0,200),502,'TRENDING_FETCH_FAILED');}
+ await env.DB.prepare("INSERT INTO trending_meta(key,value) VALUES('last_success',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=CURRENT_TIMESTAMP").bind(new Date().toISOString()).run();
+ await env.DB.prepare("DELETE FROM trending_meta WHERE key='last_error'").run();
+ await env.DB.prepare("DELETE FROM trending_papers WHERE published < date('now','-120 days')").run();
+ if(weeklyPush){
+  const subscriptions=await env.DB.prepare('SELECT * FROM watch_push LIMIT 300').all();
+  let sent=0;
+  for(const sub of subscriptions.results||[]){
+   if(!env.VAPID_PRIVATE_KEY)break;
+   try{const code=await sendWebPush(sub,env,'薬学リサーチAI：今週の注目論文','循環器・糖尿病・栄養学などの注目論文を更新しました。','#watch-notifications');if([201,202].includes(code))sent++;else if([404,410].includes(code))await env.DB.prepare('DELETE FROM watch_push WHERE client_id=?').bind(sub.client_id).run();}
+   catch(e){console.error('Trending push failed',errorMessage(e).slice(0,140));}
+  }
+  result.sent=sent;
+ }
+ console.log('Trending scan completed',JSON.stringify({...result,errors}));return result;
 }
 
 export default {
@@ -1523,6 +1646,7 @@ export default {
     // Cronが設定されたときだけ実行。検索中のリクエストには負荷をかけません。
     if (controller.cron === "0 18 * * *") ctx.waitUntil(cleanupD1History(env));
     else if (controller.cron === "0 22 * * *") ctx.waitUntil(checkNewPapers(env));
+    else if (controller.cron === "20 22 * * 0") ctx.waitUntil(refreshTrending(env,true));
     else console.warn("Unexpected cron",controller.cron);
   },
   async queue(batch, env) {
