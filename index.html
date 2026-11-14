@@ -18,30 +18,17 @@
 <body><div class="container">
 <h1>薬学リサーチAI</h1>
 
-<section class="section" id="watch-notifications">
- <h2>🔔 新着論文ウォッチ <span id="watchUnread" class="watch-unread" style="font-size:14px"></span></h2>
- <p class="description">登録したテーマを毎朝7時ごろPubMedで自動確認します。検索語は日本語でも登録できます。初回確認では既存論文を基準として記録し、2回目以降の新着だけを通知します。</p>
- <div id="watchStatus" class="status">通知設定を読み込み中…</div>
- <div class="watch-btnrow"><button id="enablePush" type="button" class="green">iPhoneのプッシュ通知を有効にする</button><button type="button" class="secondary" id="testPush">テスト送信</button><button type="button" class="gray" id="disablePush">通知解除</button></div>
- <p class="watch-note">iPhoneではSafariから「ホーム画面に追加」し、追加したアイコンから開いた状態で通知を許可してください。ブラウザ内の普通のタブからは許可できない場合があります。</p>
- <div class="watch-fields">
-  <label for="watchLabel">テーマ名</label><input id="watchLabel" type="text" maxlength="100" placeholder="例：PPIと骨折リスク">
-  <label for="watchQuery">PubMed検索ワード（日本語・英語）</label><textarea id="watchQuery" rows="2" maxlength="240" placeholder="例：PPI長期服用と骨折リスク"></textarea>
-  <input type="hidden" id="watchEditId" value="">
-  <div class="watch-btnrow"><button type="button" class="green" id="watchSave">テーマを登録</button><button type="button" class="gray" id="watchCancel" style="display:none">編集をキャンセル</button></div>
- </div>
- <h3>登録テーマ（最大30件）</h3><div id="watchTopics"></div>
- <div class="row" style="justify-content:space-between;align-items:center"><h3>アプリ内通知</h3><button type="button" class="secondary" style="width:auto;padding:10px" id="watchRead">すべて既読にする</button></div>
- <div id="watchNotifications"><p class="description">新着論文はまだありません。</p></div>
- <div id="watchMoreBox" style="display:none"><button class="secondary" id="watchMore" type="button">次の10件も日本語にする</button></div>
- <div id="watchPaperDetail" class="article" hidden aria-live="polite"></div>
- <hr style="border:0;border-top:1px solid #dce3e9;margin:24px 0">
- <h3>⭐ 今週の注目論文</h3>
+<section class="section" id="featured-papers"> <h2>⭐ 今週の注目論文</h2>
  <p class="description">循環器・糖尿病・栄養学・腎臓病・薬物療法から週1回収集。30日で0件なら自動的に90日へ拡大します。直近30日のRCT・メタ解析も優先表示します。被引用数と新しさによる暫定的な注目度であり、研究の質・臨床的重要性の保証ではありません。毎週月曜7:20（日本時間）に更新し、通知をまとめて送信します。</p>
  <div class="watch-btnrow"><select id="trendDays" aria-label="対象期間"><option value="30">過去30日</option><option value="90">過去90日</option></select><select id="trendCategory" aria-label="分野"><option value="all">全分野</option><option value="循環器">循環器</option><option value="糖尿病">糖尿病</option><option value="栄養学">栄養学</option><option value="腎臓病">腎臓病</option><option value="薬物療法">薬物療法</option></select></div>
  <div class="watch-btnrow"><button class="secondary" id="trendLoad" type="button">一覧を表示・更新</button><button class="gray" id="trendRefresh" type="button">論文データを取得</button></div>
  <div id="trendStatus" class="watch-note">注目論文の情報を読み込みます。</div><div id="trendResults"></div>
  <div id="trendDetail" class="article" hidden aria-live="polite"></div>
+</section>
+<section class="section" id="watch-notifications"> <div class="row" style="justify-content:space-between;align-items:center"><h2>🔔 自動検索の結果（新着論文）</h2><button type="button" class="secondary" style="width:auto;padding:10px" id="watchRead">すべて既読にする</button></div>
+ <div id="watchNotifications"><p class="description">新着論文はまだありません。</p></div>
+ <div id="watchMoreBox" style="display:none"><button class="secondary" id="watchMore" type="button">次の10件も日本語にする</button></div>
+ <div id="watchPaperDetail" class="article" hidden aria-live="polite"></div>
 </section>
 
 <section class="section" id="globalProgress" hidden aria-live="polite">
@@ -93,6 +80,19 @@
 <section class="section"><h2>お気に入り論文</h2><p class="description">このiPhone・ブラウザに保存します。タグやメモも保存でき、同じ端末から再確認できます。ブラウザデータ削除や別端末には引き継がれません。</p><div id="favoriteList"></div></section>
 <section class="section"><h2>検索・翻訳の履歴</h2><p class="description">この端末で開始した直近10件のジョブIDを保存しています。D1の完了済み履歴は30日経過後に自動整理されます。</p><div id="searchHistory"></div></section>
 <section class="section"><h2>バックグラウンド分析の履歴</h2><p class="description">分析を開始すると、画面を閉じてもCloudflare側で処理を継続します。再訪時に保存したジョブIDから結果を再確認できます（この端末のブラウザに直近15件まで保存）。D1の完了済み記録は30日経過後に自動整理されます。</p><div id="jobHistory"></div></section>
+<section class="section" id="watch-topics-settings"> <h2>⚙️ 自動検索テーマ・通知設定 <span id="watchUnread" class="watch-unread" style="font-size:14px"></span></h2>
+ <p class="description">登録したテーマを毎朝7時ごろPubMedで自動確認します。検索語は日本語でも登録できます。初回確認では既存論文を基準として記録し、2回目以降の新着だけを通知します。</p>
+ <div id="watchStatus" class="status">通知設定を読み込み中…</div>
+ <div class="watch-btnrow"><button id="enablePush" type="button" class="green">iPhoneのプッシュ通知を有効にする</button><button type="button" class="secondary" id="testPush">テスト送信</button><button type="button" class="gray" id="disablePush">通知解除</button></div>
+ <p class="watch-note">iPhoneではSafariから「ホーム画面に追加」し、追加したアイコンから開いた状態で通知を許可してください。ブラウザ内の普通のタブからは許可できない場合があります。</p>
+ <div class="watch-fields">
+  <label for="watchLabel">テーマ名</label><input id="watchLabel" type="text" maxlength="100" placeholder="例：PPIと骨折リスク">
+  <label for="watchQuery">PubMed検索ワード（日本語・英語）</label><textarea id="watchQuery" rows="2" maxlength="240" placeholder="例：PPI長期服用と骨折リスク"></textarea>
+  <input type="hidden" id="watchEditId" value="">
+  <div class="watch-btnrow"><button type="button" class="green" id="watchSave">テーマを登録</button><button type="button" class="gray" id="watchCancel" style="display:none">編集をキャンセル</button></div>
+ </div>
+ <h3>登録テーマ（最大30件）</h3><div id="watchTopics"></div>
+</section>
 <div class="footer">薬学リサーチAI　｜　医学的判断には必ず原著論文を確認してください。翻訳にはGeminiとMyMemoryを使用し、失敗時は自動切替します。MyMemoryは外部翻訳サービスです。患者情報・機密情報は入力しないでください。Europe PMC経由の検索結果の並び順はPubMed公式と異なる場合があります。AI分析は公開全文XML・端末のPDF/TXTを優先し、取得できなければAbstractを使用します。図・画像・補足資料、PDF中の画像文字は一部抽出されません。全文が取得できない論文の結果には「Abstract限定」と明記します。手元のPDFはブラウザ内でテキストを抽出し、分析時にGeminiへ送信します。論文の利用条件を守ってください。</div>
 </div>
 <script>
