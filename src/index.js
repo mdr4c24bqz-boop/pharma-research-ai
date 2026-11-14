@@ -480,7 +480,7 @@ async function translateArticle(body, env) {
 
 // 全行程の進捗は jobs.result に保存し、クライアントは短いGETで3秒ごとに参照する。
 // 外部APIの単一HTTP要求を継続して待たず、Queueに次の短い仕事を渡す。
-const VERSION = "research-assistant-v9-3-trending-20261114";
+const VERSION = "research-assistant-v9-4-trending-fallback-20261114";
 const VALID_COUNTS = [5, 10, 20];
 const STAGE_MAX_ATTEMPTS = 3;
 const ANALYSIS_MAX_ATTEMPTS = 5;
@@ -1258,15 +1258,24 @@ async function watchApi(request,env,url,origin){
   const cid=await watchClient(request,env);
   // 注目論文：ユーザー固有の通知購読を確認したうえで共通の公開論文一覧を返す。
   if(path==='/watch/trending'&&request.method==='GET'){
-   const days=url.searchParams.get('days')==='90'?90:30;
+   const requestedDays=url.searchParams.get('days')==='90'?90:30;
    const category=url.searchParams.get('category')||'all';
-   const cutoff=new Date(Date.now()-days*86400000).toISOString().slice(0,10);
-   const base=category==='all'
-    ?await env.DB.prepare('SELECT pmid,title,title_ja,category,published,citations,study_type,score,reason,updated_at FROM trending_papers WHERE published>=? ORDER BY score DESC, published DESC LIMIT 70').bind(cutoff).all()
-    :await env.DB.prepare('SELECT pmid,title,title_ja,category,published,citations,study_type,score,reason,updated_at FROM trending_papers WHERE published>=? AND category=? ORDER BY score DESC,published DESC LIMIT 40').bind(cutoff,category.slice(0,40)).all();
+   const findPapers=async(days)=>{
+    const cutoff=new Date(Date.now()-days*86400000).toISOString().slice(0,10);
+    return category==='all'
+     ?env.DB.prepare('SELECT pmid,title,title_ja,category,published,citations,study_type,score,reason,updated_at FROM trending_papers WHERE published>=? ORDER BY score DESC,published DESC LIMIT 70').bind(cutoff).all()
+     :env.DB.prepare('SELECT pmid,title,title_ja,category,published,citations,study_type,score,reason,updated_at FROM trending_papers WHERE published>=? AND category=? ORDER BY score DESC,published DESC LIMIT 40').bind(cutoff,category.slice(0,40)).all();
+   };
+   let effectiveDays=requestedDays;
+   let base=await findPapers(requestedDays);
+   if(requestedDays===30&&!(base.results||[]).length){
+    base=await findPapers(90);
+    if((base.results||[]).length)effectiveDays=90;
+   }
    const m=await env.DB.prepare("SELECT value,updated_at FROM trending_meta WHERE key='last_success'").first();
    const err=await env.DB.prepare("SELECT value FROM trending_meta WHERE key='last_error'").first();
-   return json({papers:base.results||[],lastUpdated:m?.value||null,lastError:err?.value||null,days},200,origin);
+   return json({papers:base.results||[],lastUpdated:m?.value||null,lastError:err?.value||null,
+    days:effectiveDays,requestedDays,effectiveDays,autoExpanded:effectiveDays>requestedDays},200,origin);
   }
   if(path==='/watch/trending/refresh'&&request.method==='POST'){
    // 手動更新はシステム全体で6時間に一度まで。失敗時の再試行は可能。
@@ -1486,8 +1495,8 @@ async function trendingSource(category){
  }
  return papers;
 }
-async function fallbackTrendingSource(category){
- const params=new URLSearchParams({db:'pubmed',term:'('+category.query+') AND (randomized controlled trial[pt] OR meta-analysis[pt] OR systematic review[ti])',retmax:'25',retmode:'json',sort:'date',datetype:'pdat',reldate:'90',tool:'PharmaResearchAITrending'});
+async function fallbackTrendingSource(category,days=90){
+ const params=new URLSearchParams({db:'pubmed',term:'('+category.query+') AND (randomized controlled trial[pt] OR meta-analysis[pt] OR systematic review[ti])',retmax:'25',retmode:'json',sort:'date',datetype:'pdat',reldate:String(days),tool:'PharmaResearchAITrending'});
  const found=JSON.parse(await literatureRequest('https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?'+params,14000,'注目論文PubMed代替検索'));
  const ids=(found?.esearchresult?.idlist||[]).filter(x=>/^\d+$/.test(x));
  if(!ids.length)return [];
@@ -1505,7 +1514,10 @@ async function fallbackTrendingSource(category){
   const iso=match[1]+'-'+String(month+1).padStart(2,'0')+'-'+day;
   return !Number.isNaN(Date.parse(iso))?iso:null;
  };
- return papers.slice(0,12).flatMap((a,i)=>{const published=isoPub(a.pmid);if(!published)return [];const st=studyPriority(a);return [{pmid:a.pmid,title:a.title.slice(0,700),category:category.name,published,citations:0,study_type:st.studyType,score:30-i,reason:'PubMedの直近90日・研究デザインによる暫定抽出（被引用数は未取得）'}];});
+ return papers.slice(0,12).flatMap((a,i)=>{const published=isoPub(a.pmid);if(!published)return [];const st=studyPriority(a);const priority=['RCT','メタ解析','系統的レビュー'].includes(st.studyType);
+   return [{pmid:a.pmid,title:a.title.slice(0,700),category:category.name,published,citations:0,study_type:st.studyType,
+    score:(days===30&&priority?170:30)-i,
+    reason:(days===30&&priority?'直近30日・'+st.studyType+'のため優先（被引用数が少なくても表示。質を保証するものではありません）':'PubMedの直近'+days+'日・研究デザインによる暫定抽出（被引用数は未取得）')}];});
 }
 async function refreshTrending(env,weeklyPush){
  await ensureWatchTables(env);
@@ -1516,8 +1528,25 @@ async function refreshTrending(env,weeklyPush){
    let papers=[];
    try{papers=await trendingSource(category);}catch(e){errors.push(category.name+' OpenAlex: '+errorMessage(e).slice(0,90));}
    if(!papers.length)papers=await fallbackTrendingSource(category);
+   // 新しいRCT/メタ解析は被引用数が少なくても候補に追加する。
+   // PubMedの調査が失敗してもOpenAlexの候補は維持する。
+   try{
+    const clinical=await fallbackTrendingSource(category,30);
+    const byId=new Map(papers.map(p=>[p.pmid,p]));
+    for(const candidate of clinical){
+     const previous=byId.get(candidate.pmid);
+     if(!previous||candidate.score>previous.score){
+      byId.set(candidate.pmid,{...previous,...candidate,citations:Math.max(previous?.citations||0,candidate.citations)});
+     }
+    }
+    papers=[...byId.values()].sort((a,b)=>b.score-a.score);
+   }catch(e){errors.push(category.name+' 直近30日のPubMed検索: '+errorMessage(e).slice(0,90));}
    for(const paper of papers){
-    const res=await env.DB.prepare(`INSERT INTO trending_papers(pmid,title,category,published,citations,study_type,score,reason) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(pmid) DO UPDATE SET citations=excluded.citations,score=excluded.score,reason=excluded.reason,updated_at=CURRENT_TIMESTAMP`).bind(paper.pmid,paper.title,paper.category,paper.published,paper.citations,paper.study_type,paper.score,paper.reason).run();
+    const res=await env.DB.prepare(`INSERT INTO trending_papers(pmid,title,category,published,citations,study_type,score,reason) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(pmid) DO UPDATE SET
+     citations=MAX(trending_papers.citations,excluded.citations),
+     study_type=CASE WHEN excluded.score>=COALESCE(trending_papers.score,0) THEN excluded.study_type ELSE trending_papers.study_type END,
+     reason=CASE WHEN excluded.score>=COALESCE(trending_papers.score,0) THEN excluded.reason ELSE trending_papers.reason END,
+     score=MAX(COALESCE(trending_papers.score,0),excluded.score),updated_at=CURRENT_TIMESTAMP`).bind(paper.pmid,paper.title,paper.category,paper.published,paper.citations,paper.study_type,paper.score,paper.reason).run();
     if(Number(res?.meta?.changes||0))added++;
    }
    categories++;
@@ -1646,7 +1675,7 @@ export default {
     // Cronが設定されたときだけ実行。検索中のリクエストには負荷をかけません。
     if (controller.cron === "0 18 * * *") ctx.waitUntil(cleanupD1History(env));
     else if (controller.cron === "0 22 * * *") ctx.waitUntil(checkNewPapers(env));
-    else if (controller.cron === "20 22 * * 0") ctx.waitUntil(refreshTrending(env,true));
+    else if (["20 22 * * SUN","20 22 * * 1","20 22 * * 0"].includes(controller.cron)) ctx.waitUntil(refreshTrending(env,true));
     else console.warn("Unexpected cron",controller.cron);
   },
   async queue(batch, env) {
