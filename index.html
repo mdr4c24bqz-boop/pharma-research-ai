@@ -30,11 +30,18 @@
   <input type="hidden" id="watchEditId" value="">
   <div class="watch-btnrow"><button type="button" class="green" id="watchSave">テーマを登録</button><button type="button" class="gray" id="watchCancel" style="display:none">編集をキャンセル</button></div>
  </div>
- <h3>登録テーマ（最大10件）</h3><div id="watchTopics"></div>
+ <h3>登録テーマ（最大30件）</h3><div id="watchTopics"></div>
  <div class="row" style="justify-content:space-between;align-items:center"><h3>アプリ内通知</h3><button type="button" class="secondary" style="width:auto;padding:10px" id="watchRead">すべて既読にする</button></div>
  <div id="watchNotifications"><p class="description">新着論文はまだありません。</p></div>
  <div id="watchMoreBox" style="display:none"><button class="secondary" id="watchMore" type="button">次の10件も日本語にする</button></div>
  <div id="watchPaperDetail" class="article" hidden aria-live="polite"></div>
+ <hr style="border:0;border-top:1px solid #dce3e9;margin:24px 0">
+ <h3>⭐ 今週の注目論文</h3>
+ <p class="description">循環器・糖尿病・栄養学・腎臓病・薬物療法から週1回収集。被引用数と新しさによる暫定的な注目度であり、研究の質・臨床的重要性の保証ではありません。毎週月曜7:20（日本時間）に更新し、通知をまとめて送信します。</p>
+ <div class="watch-btnrow"><select id="trendDays" aria-label="対象期間"><option value="30">過去30日</option><option value="90">過去90日</option></select><select id="trendCategory" aria-label="分野"><option value="all">全分野</option><option value="循環器">循環器</option><option value="糖尿病">糖尿病</option><option value="栄養学">栄養学</option><option value="腎臓病">腎臓病</option><option value="薬物療法">薬物療法</option></select></div>
+ <div class="watch-btnrow"><button class="secondary" id="trendLoad" type="button">一覧を表示・更新</button><button class="gray" id="trendRefresh" type="button">論文データを取得</button></div>
+ <div id="trendStatus" class="watch-note">注目論文の情報を読み込みます。</div><div id="trendResults"></div>
+ <div id="trendDetail" class="article" hidden aria-live="polite"></div>
 </section>
 
 <section class="section" id="globalProgress" hidden aria-live="polite">
@@ -656,6 +663,59 @@ async function runAssistant(mode,btn){
 $('assistantAsk').addEventListener('click',()=>runAssistant('followup',$('assistantAsk')));
 $('assistantTable').addEventListener('click',()=>runAssistant('table',$('assistantTable')));
 refreshAssistantHistory();
+// ===== v9.3: 注目論文 =====
+let trendingTranslationGeneration=0;
+async function loadTrending(){
+ const days=$('trendDays').value,category=$('trendCategory').value;
+ const status=$('trendStatus');status.textContent='注目論文を確認しています…';
+ try{
+  const data=await watchRequest('/watch/trending?days='+encodeURIComponent(days)+'&category='+encodeURIComponent(category));
+  const rows=data.papers||[];const root=$('trendResults');root.replaceChildren();
+  status.textContent=data.lastUpdated?'最終収集：'+new Date(data.lastUpdated).toLocaleString('ja-JP')+' ／ '+rows.length+'件表示':'未収集です。最初の週次実行を待つか、「論文データを取得」を押してください。';
+  if(data.lastError)status.textContent+=' ／ 前回の取得エラー：'+data.lastError;
+  const run=++trendingTranslationGeneration;
+  if(!rows.length){root.append(watchTag('p','description','この条件に該当する注目論文はまだありません。'));return;}
+  for(const r of rows){
+   const panel=watchTag('div','watch-notif');
+   const button=watchTag('button','watch-title-link',r.title_ja||r.title);
+   button.addEventListener('click',()=>openTrendingPaper(r.pmid));panel.append(button);
+   panel.append(watchTag('p','watch-note','分野：'+r.category+' ／ 公開日：'+(r.published||'不明')+' ／ 被引用数：'+r.citations));
+   panel.append(watchTag('p','watch-note',r.reason||'注目度は参考指標です。'));
+   const link=watchTag('a','watch-pubmed-link','PubMedを開く');link.href=safePubmed(r.pmid);link.target='_blank';link.rel='noopener noreferrer';panel.append(link);root.append(panel);
+   r._title=button;
+  }
+  // 一度に最大10件だけ翻訳。過剰な無料API消費を防止。
+  for(const r of rows.slice(0,10)){
+   if(run!==trendingTranslationGeneration)return;
+   if(r.title_ja)continue;
+   try{const translated=await watchRequest('/watch/trending/'+r.pmid+'/title-ja','POST',{});if(r._title?.isConnected)r._title.textContent=translated.titleJa;}
+   catch{ /* 元の英語タイトルを維持 */ }
+  }
+ }catch(e){status.textContent='注目論文の取得に失敗しました：'+e.message;}
+}
+async function openTrendingPaper(pmid){
+ const panel=$('trendDetail');panel.hidden=false;panel.replaceChildren(watchTag('p','status','日本語要旨を取得しています…'));panel.scrollIntoView({behavior:'smooth',block:'start'});
+ try{
+  const d=await watchRequest('/watch/trending/'+encodeURIComponent(pmid)+'/detail');panel.replaceChildren();
+  panel.append(watchTag('h3','watch-paper-head',d.titleJa||d.title));panel.append(watchTag('p','watch-note','原題：'+d.title));
+  const link=watchTag('a','watch-pubmed-link','PubMedを開く');link.href=safePubmed(d.pmid);link.target='_blank';link.rel='noopener noreferrer';panel.append(link);
+  panel.append(watchTag('h3','','Abstract 日本語訳'),watchTag('div','watch-abstract',d.abstractJa||'日本語訳はまだありません。'));
+  if(d.abstractEn){const details=document.createElement('details');details.append(watchTag('summary','','Abstract 英語原文'),watchTag('div','watch-abstract',d.abstractEn));panel.append(details);}
+  if(d.abstractError)panel.append(watchTag('p','error',d.abstractError));
+  const stat=watchTag('div','status'),out=watchTag('div','ai-output');out.style.display='none';
+  const ai=watchTag('button','green','この論文をAIで詳しく分析');ai.addEventListener('click',()=>submitAnalysis({kind:'analysis',pmid:d.pmid,title:d.title,abstract:d.abstractEn||''},'注目論文の分析：'+d.title,stat,out,ai));panel.append(ai,stat,out);
+  const close=watchTag('button','gray','閉じる');close.addEventListener('click',()=>panel.hidden=true);panel.append(close);
+ }catch(e){panel.replaceChildren(watchTag('p','error','要旨の取得に失敗しました：'+e.message));}
+}
+$('trendDays').addEventListener('change',loadTrending);
+$('trendCategory').addEventListener('change',loadTrending);
+$('trendLoad').addEventListener('click',loadTrending);
+$('trendRefresh').addEventListener('click',async()=>{
+ const btn=$('trendRefresh');btn.disabled=true;$('trendStatus').textContent='最新の公開データを収集中です。';
+ try{await watchRequest('/watch/trending/refresh','POST',{});await loadTrending();}catch(e){$('trendStatus').textContent='更新できませんでした：'+e.message;}
+ finally{btn.disabled=false;}
+});
+
 // ===== v8: 新着論文ウォッチ・Web Push =====
 const WATCH_CLIENT_KEY='pharmaWatchClientTokenV8';
 const WATCH_API_TIMEOUT=60000;
@@ -688,6 +748,7 @@ async function loadWatch(){
   watchTopics=topics.topics||[];showWatchTopics();showWatchNotifications(notifications.notifications||[]);const deep=location.hash.match(/^#watch-paper-(\d+)$/);if(deep&&!window.__watchDeepOpened){window.__watchDeepOpened=true;openWatchPaper(Number(deep[1]));}
   const support=('serviceWorker' in navigator)&&('PushManager' in window)&&('Notification' in window);
   const current=typeof Notification!=='undefined'?Notification.permission:'unsupported';
+  loadTrending().catch(()=>{});
   watchStatus('ウォッチ機能は有効です。プッシュ通知：'+(config.enabled?'送信設定済み':'送信用Secret未設定')+' ／ この端末：'+current+(support?'':'（Web Push非対応）'));
  }catch(e){watchStatus('通知一覧を読み込めません：'+e.message,true);}
 }
