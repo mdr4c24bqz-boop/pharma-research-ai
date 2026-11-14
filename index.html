@@ -13,6 +13,23 @@
 .filter-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.filter-grid label{margin:0;font-size:13px}.filter-grid select{padding:10px;font-size:14px}.filter-check{display:flex;align-items:center;gap:8px;font-size:14px}.filter-check input{width:18px;height:18px}.favorite-meta{color:#556b7a;font-size:13px;white-space:pre-wrap}.compact-action{font-size:14px;padding:11px;background:#57758c}.small-note{font-size:12px;color:#65727c}
 
 .watch-topic{border:1px solid #dce3e9;border-radius:10px;padding:12px;margin:10px 0}.watch-btnrow{display:flex;gap:7px;flex-wrap:wrap}.watch-btnrow button{width:auto;flex:1;min-width:90px;padding:10px}.watch-notice{padding:11px;background:#eff6fa;border-radius:9px;margin:10px 0;font-size:13px;line-height:1.7}.watch-unread{font-weight:bold;color:#287b65}.watch-note{font-size:12px;color:#647887;word-wrap:break-word}.watch-notif{border-bottom:1px solid #dee6eb;padding:10px 0}.watch-notif a{display:block;margin:4px 0}.watch-title-link{display:block;border:0;background:none;padding:5px 0;margin:5px 0;text-align:left;font-size:16px;color:#166a9e;text-decoration:underline;line-height:1.6;cursor:pointer;width:100%}.watch-pubmed-link{display:inline-block;padding:9px 13px;margin:8px 0;background:#245b83;color:white!important;border-radius:7px;text-decoration:none;font-size:14px}.watch-paper-head{font-weight:700;color:#245b83}.watch-abstract{white-space:pre-wrap;line-height:1.8;overflow-wrap:anywhere}.watch-fields{display:grid;gap:8px}#watchLabel,#watchQuery{width:100%;padding:13px;font-size:16px;border-radius:9px;border:1px solid #b9c9d5}.study-tag{display:inline-block;font-size:12px;background:#e7f1f6;color:#245b83;border-radius:6px;padding:4px 7px;margin:5px 0}.study-tag.hot{background:#fff2d7;color:#8a5100}#assistantSource{max-width:100%}.assistant-table-wrap{max-width:100%;overflow-x:auto;margin:10px 0}.assistant-table{border-collapse:collapse;min-width:580px;font-size:13px;background:#fff}.assistant-table th,.assistant-table td{border:1px solid #d5e1e8;padding:8px;vertical-align:top;white-space:pre-wrap}.assistant-table th{background:#e8f1f6}
+
+/* v9.4.1: sections have distinct accessible accent colors */
+#featured-papers{background:#faf6ff;border:2px solid #c8ace9;border-left:7px solid #8053b5}
+#featured-papers>h2{color:#663c91}
+#featured-papers .watch-notif{background:#fff;border:1px solid #eadcf8;padding:13px;border-radius:11px;margin:10px 0}
+#featured-papers .watch-title-link{color:#67419a}
+#featured-papers .watch-pubmed-link{background:#7650a5}
+#watch-notifications{background:#f3f9ff;border:2px solid #a6caee;border-left:7px solid #2879bc}
+#watch-notifications h2{color:#205f96}
+#watch-notifications .watch-notif{background:#fff;border:1px solid #d8e9f7;padding:13px;border-radius:11px;margin:10px 0}
+#watch-topics-settings{background:#f2faf6;border:2px solid #a9d9c0;border-left:7px solid #27805a}
+#watch-topics-settings h2,#watch-topics-settings h3{color:#256b4e}
+#watch-topics-settings .watch-topic{background:#fff;border-color:#c6e2d3}
+.trend-translation-status{font-size:13px;color:#68418c;line-height:1.6;margin:9px 0}
+.trend-retry{width:auto!important;font-size:13px;padding:8px 11px;background:#7957a6;margin:5px 0}
+.trend-translation-warning{color:#9a542a;font-size:12px;margin:5px 0}
+@media(prefers-color-scheme:dark){#featured-papers,#watch-notifications,#watch-topics-settings{color:#263238}}
 </style>
 </head>
 <body><div class="container">
@@ -665,12 +682,42 @@ $('assistantTable').addEventListener('click',()=>runAssistant('table',$('assista
 refreshAssistantHistory();
 // ===== v9.3: 注目論文 =====
 let trendingTranslationGeneration=0;
+async function translateTrendingTitle(r,run){
+  if(run!==trendingTranslationGeneration || !r._title?.isConnected)return;
+  // 重複クリックは防止するが、過去の失敗は個別再試行を許可。
+  if(r._translationBusy)return;
+  r._translationBusy=true;
+  if(r._retry?.isConnected)r._retry.remove();
+  if(r._warning?.isConnected)r._warning.remove();
+  r._title.textContent='翻訳中… '+r.title;
+  try{
+    const translated=await watchRequest('/watch/trending/'+encodeURIComponent(r.pmid)+'/title-ja','POST',{});
+    const title=String(translated.titleJa||'').trim();
+    if(!title)throw Error('翻訳結果が空でした');
+    r._title.textContent=title;
+    r.title_ja=title;
+    r._translateFailed=false;
+  }catch(e){
+    r._translateFailed=true;
+    r._title.textContent=r.title;
+    if(run===trendingTranslationGeneration && r._title.isConnected){
+      const panel=r._title.parentNode;
+      const msg=watchTag('p','trend-translation-warning','日本語訳を取得できませんでした。通信状況や翻訳APIの利用制限の可能性があります。');
+      const retry=watchTag('button','trend-retry','日本語に再翻訳');
+      retry.type='button';
+      retry.addEventListener('click',()=>translateTrendingTitle(r,trendingTranslationGeneration));
+      panel.append(msg,retry);
+      r._warning=msg;r._retry=retry;
+    }
+  }finally{r._translationBusy=false;}
+}
 async function loadTrending(){
  const days=$('trendDays').value,category=$('trendCategory').value;
  const status=$('trendStatus');status.textContent='注目論文を確認しています…';
  try{
   const data=await watchRequest('/watch/trending?days='+encodeURIComponent(days)+'&category='+encodeURIComponent(category));
   const rows=data.papers||[];const root=$('trendResults');root.replaceChildren();
+  document.querySelectorAll('.trend-translation-status').forEach(el=>el.remove());
   status.textContent=data.lastUpdated?'最終収集：'+new Date(data.lastUpdated).toLocaleString('ja-JP')+' ／ '+rows.length+'件表示':'未収集です。最初の週次実行を待つか、「論文データを取得」を押してください。';
   if(data.autoExpanded)status.textContent+=' ／ 保存済みの過去30日の候補が0件だったため、90日まで表示対象を自動拡大しました。';
   if(data.lastError)status.textContent+=' ／ 前回の取得エラー：'+data.lastError;
@@ -680,18 +727,26 @@ async function loadTrending(){
    const panel=watchTag('div','watch-notif');
    const button=watchTag('button','watch-title-link',r.title_ja||r.title);
    button.addEventListener('click',()=>openTrendingPaper(r.pmid));panel.append(button);
+   if(!r.title_ja)panel.append(watchTag('p','watch-note','原題（翻訳待ち）：'+r.title));
    panel.append(watchTag('p','watch-note','分野：'+r.category+' ／ 公開日：'+(r.published||'不明')+' ／ 研究タイプ：'+(r.study_type||'未判定')+' ／ 被引用数：'+r.citations));
    panel.append(watchTag('p','watch-note',r.reason||'注目度は参考指標です。'));
    const link=watchTag('a','watch-pubmed-link','PubMedを開く');link.href=safePubmed(r.pmid);link.target='_blank';link.rel='noopener noreferrer';panel.append(link);root.append(panel);
    r._title=button;
   }
-  // 一度に最大10件だけ翻訳。過剰な無料API消費を防止。
-  for(const r of rows.slice(0,10)){
-   if(run!==trendingTranslationGeneration)return;
-   if(r.title_ja)continue;
-   try{const translated=await watchRequest('/watch/trending/'+r.pmid+'/title-ja','POST',{});if(r._title?.isConnected)r._title.textContent=translated.titleJa;}
-   catch{ /* 元の英語タイトルを維持 */ }
+  // すべての表示論文を順次翻訳。API利用枠に達したときは失敗を明示し、個別再試行できる。
+  const pending=rows.filter(r=>!r.title_ja);
+  if(!pending.length)return;
+  const progress=watchTag('p','trend-translation-status','日本語タイトル翻訳中：0 / '+pending.length+'件');
+  status.insertAdjacentElement('afterend',progress);
+  let done=0,failed=0;
+  for(const r of pending){
+   if(run!==trendingTranslationGeneration){progress.remove();return;}
+   await translateTrendingTitle(r,run);
+   done++;
+   if(r._translateFailed)failed++;
+   if(progress.isConnected)progress.textContent='日本語タイトル翻訳：'+done+' / '+pending.length+'件'+(failed?'（未翻訳 '+failed+'件。各論文から再試行できます）':'');
   }
+  if(run===trendingTranslationGeneration&&progress.isConnected)progress.textContent=failed?'日本語訳を取得できなかった論文が'+failed+'件あります。各論文の「翻訳を再試行」を押してください。':'表示中の論文タイトルの日本語訳が完了しました。';
  }catch(e){status.textContent='注目論文の取得に失敗しました：'+e.message;}
 }
 async function openTrendingPaper(pmid){
