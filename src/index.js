@@ -480,7 +480,7 @@ async function translateArticle(body, env) {
 
 // 全行程の進捗は jobs.result に保存し、クライアントは短いGETで3秒ごとに参照する。
 // 外部APIの単一HTTP要求を継続して待たず、Queueに次の短い仕事を渡す。
-const VERSION = "research-assistant-v9-no-guideline-20261107";
+const VERSION = "research-assistant-v9-2-japanese-watch-20261114";
 const VALID_COUNTS = [5, 10, 20];
 const STAGE_MAX_ATTEMPTS = 3;
 const ANALYSIS_MAX_ATTEMPTS = 5;
@@ -1191,7 +1191,7 @@ async function ensureWatchTables(env) {
   // 既存v8の通知データを消さずに拡張する。
   const cols=await env.DB.prepare('PRAGMA table_info(watch_notifications)').all();
   const names=new Set((cols.results||[]).map(c=>c.name));
-  for(const name of ['study_type','priority','priority_reason']){
+  for(const name of ['study_type','priority','priority_reason','title_ja','abstract_en','abstract_ja','abstract_source']){
    if(!names.has(name))await env.DB.prepare(`ALTER TABLE watch_notifications ADD COLUMN ${name} TEXT`).run();
   }
   watchTables.add(env.DB);
@@ -1291,8 +1291,34 @@ async function watchApi(request,env,url,origin){
    }
   }
   if(path==='/watch/notifications'&&request.method==='GET'){
-   const rows=await env.DB.prepare('SELECT n.id,n.topic_id,n.pmid,n.title,n.study_type,n.priority,n.priority_reason,n.created_at,n.read_at,t.label AS topic_label FROM watch_notifications n LEFT JOIN watch_topics t ON t.id=n.topic_id WHERE n.client_id=? ORDER BY n.id DESC LIMIT ?').bind(cid,WATCH_MAX_NOTIFICATIONS).all();
+   const rows=await env.DB.prepare('SELECT n.id,n.topic_id,n.pmid,n.title,n.title_ja,n.study_type,n.priority,n.priority_reason,n.created_at,n.read_at,t.label AS topic_label FROM watch_notifications n LEFT JOIN watch_topics t ON t.id=n.topic_id WHERE n.client_id=? ORDER BY n.id DESC LIMIT ?').bind(cid,WATCH_MAX_NOTIFICATIONS).all();
    return json({notifications:rows.results||[]},200,origin);
+  }
+  // 日本語タイトルはタップ時の表示要求で翻訳してD1へ保存（Cronでは翻訳しない）。
+  const titleRoute=path.match(/^\/watch\/notifications\/(\d+)\/title-ja$/);
+  if(titleRoute&&request.method==='POST'){
+   const id=Number(titleRoute[1]);
+   const row=await env.DB.prepare('SELECT id,title,title_ja FROM watch_notifications WHERE id=? AND client_id=?').bind(id,cid).first();
+   if(!row)throw apiError('通知が見つかりません',404,'NOTIFICATION_MISSING');
+   if(row.title_ja)return json({id,titleJa:row.title_ja},200,origin);
+   const tr=await translateDual(env,row.title,'en-ja','mymemory',{timeoutMs:12000});
+   const titleJa=String(tr.text||'').trim().slice(0,1200);
+   if(!titleJa)throw apiError('翻訳結果が空です',502,'TRANSLATION_EMPTY');
+   await env.DB.prepare('UPDATE watch_notifications SET title_ja=? WHERE id=? AND client_id=?').bind(titleJa,id,cid).run();
+   return json({id,titleJa,provider:tr.provider},200,origin);
+  }
+  // 通知を開くとAbstractの原文・日本語訳をオンデマンドで取得。未取得や翻訳失敗は区別。
+  const detailRoute=path.match(/^\/watch\/notifications\/(\d+)\/detail$/);
+  if(detailRoute&&request.method==='GET'){
+   const id=Number(detailRoute[1]);
+   const row=await env.DB.prepare('SELECT id,pmid,title,title_ja,abstract_en,abstract_ja,abstract_source FROM watch_notifications WHERE id=? AND client_id=?').bind(id,cid).first();
+   if(!row)throw apiError('通知が見つかりません',404,'NOTIFICATION_MISSING');
+   let titleJa=row.title_ja||'',abstractEn=row.abstract_en||'',abstractJa=row.abstract_ja||'',source=row.abstract_source||'',abstractError='';
+   if(!titleJa){try{titleJa=(await translateDual(env,row.title,'en-ja','mymemory',{timeoutMs:12000})).text.slice(0,1200);await env.DB.prepare('UPDATE watch_notifications SET title_ja=? WHERE id=? AND client_id=?').bind(titleJa,id,cid).run();}catch(e){abstractError='タイトルの日本語訳：'+errorMessage(e);}}
+   if(!abstractEn){try{const a=await fetchAbstractByPMID(row.pmid);abstractEn=a.text.slice(0,24000);source=a.source;await env.DB.prepare('UPDATE watch_notifications SET abstract_en=?,abstract_source=? WHERE id=? AND client_id=?').bind(abstractEn,source,id,cid).run();}catch(e){abstractError=(abstractError?' ／ ':'')+'Abstractを取得できませんでした：'+errorMessage(e);}}
+   if(abstractEn&&!abstractJa){try{abstractJa=(await translateDual(env,abstractEn,'en-ja','gemini',{timeoutMs:14000})).text.slice(0,30000);await env.DB.prepare('UPDATE watch_notifications SET abstract_ja=? WHERE id=? AND client_id=?').bind(abstractJa,id,cid).run();}catch(e){abstractError=(abstractError?' ／ ':'')+'日本語訳を取得できませんでした：'+errorMessage(e);}}
+   await env.DB.prepare('UPDATE watch_notifications SET read_at=COALESCE(read_at,CURRENT_TIMESTAMP) WHERE id=? AND client_id=?').bind(id,cid).run();
+   return json({id,pmid:row.pmid,title:row.title,titleJa,abstractEn,abstractJa,source,abstractError,pubmedUrl:'https://pubmed.ncbi.nlm.nih.gov/'+row.pmid+'/'},200,origin);
   }
   if(path==='/watch/notifications/read'&&request.method==='POST'){
    await env.DB.prepare('UPDATE watch_notifications SET read_at=CURRENT_TIMESTAMP WHERE client_id=? AND read_at IS NULL').bind(cid).run();
