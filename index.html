@@ -38,7 +38,7 @@
 <section class="section" id="featured-papers"> <h2>⭐ 今週の注目論文</h2>
  <p class="description">循環器・糖尿病・栄養学・腎臓病・薬物療法から週1回収集。30日で0件なら自動的に90日へ拡大します。直近30日のRCT・メタ解析も優先表示します。被引用数と新しさによる暫定的な注目度であり、研究の質・臨床的重要性の保証ではありません。毎週月曜7:20（日本時間）に更新し、通知をまとめて送信します。</p>
  <div class="watch-btnrow"><select id="trendDays" aria-label="対象期間"><option value="30">過去30日</option><option value="90">過去90日</option></select><select id="trendCategory" aria-label="分野"><option value="all">全分野</option><option value="循環器">循環器</option><option value="糖尿病">糖尿病</option><option value="栄養学">栄養学</option><option value="腎臓病">腎臓病</option><option value="薬物療法">薬物療法</option></select></div>
- <div class="watch-btnrow"><button class="secondary" id="trendLoad" type="button">一覧を表示・更新</button><button class="gray" id="trendRefresh" type="button">論文データを取得</button></div>
+ <div class="watch-btnrow"><button class="secondary" id="trendLoad" type="button">一覧を表示・更新</button><button class="gray" id="trendRefresh" type="button">論文データを取得</button><button class="secondary" id="trendSummaryStart" type="button">AI要約をバックグラウンドで開始</button></div>
  <div id="trendStatus" class="watch-note">注目論文の情報を読み込みます。</div><div id="trendResults"></div>
  <div id="trendDetail" class="article" hidden aria-live="polite"></div>
 </section>
@@ -730,6 +730,9 @@ async function loadTrending(){
    if(!r.title_ja)panel.append(watchTag('p','watch-note','原題（翻訳待ち）：'+r.title));
    panel.append(watchTag('p','watch-note','分野：'+r.category+' ／ 公開日：'+(r.published||'不明')+' ／ 研究タイプ：'+(r.study_type||'未判定')+' ／ 被引用数：'+r.citations));
    panel.append(watchTag('p','watch-note',r.reason||'注目度は参考指標です。'));
+   const sumStatus=r.summary_status==='complete'?'要約済み':r.summary_status==='queued'?'要約待ち':r.summary_status==='running'?'AI要約中':r.summary_status==='failed'?'要約失敗（再試行は次回）':'未要約';
+   panel.append(watchTag('p','watch-note','AI要約：'+sumStatus));
+   if(r.summary_ja){const pre=watchTag('details','');pre.append(watchTag('summary','','日本語AI要約を見る（Abstractに基づく）'),watchTag('div','watch-abstract',r.summary_ja));panel.append(pre);}
    const link=watchTag('a','watch-pubmed-link','PubMedを開く');link.href=safePubmed(r.pmid);link.target='_blank';link.rel='noopener noreferrer';panel.append(link);root.append(panel);
    r._title=button;
   }
@@ -755,6 +758,9 @@ async function openTrendingPaper(pmid){
   const d=await watchRequest('/watch/trending/'+encodeURIComponent(pmid)+'/detail');panel.replaceChildren();
   panel.append(watchTag('h3','watch-paper-head',d.titleJa||d.title));panel.append(watchTag('p','watch-note','原題：'+d.title));
   const link=watchTag('a','watch-pubmed-link','PubMedを開く');link.href=safePubmed(d.pmid);link.target='_blank';link.rel='noopener noreferrer';panel.append(link);
+  panel.append(watchTag('h3','','バックグラウンドAI要約（Abstractに基づく）'));
+  panel.append(watchTag('div','watch-abstract',d.summaryJa||({'queued':'要約待ちです。アプリを閉じても処理は継続します。','running':'AIが要約中です。後で再度開いてください。','failed':'要約に失敗しました。次回の再試行をお待ちください。'}[d.summaryStatus]||'未要約です。「AI要約をバックグラウンドで開始」を押してください。')));
+  if(d.summaryError)panel.append(watchTag('p','watch-note','要約処理の状態：'+d.summaryError));
   panel.append(watchTag('h3','','Abstract 日本語訳'),watchTag('div','watch-abstract',d.abstractJa||'日本語訳はまだありません。'));
   if(d.abstractEn){const details=document.createElement('details');details.append(watchTag('summary','','Abstract 英語原文'),watchTag('div','watch-abstract',d.abstractEn));panel.append(details);}
   if(d.abstractError)panel.append(watchTag('p','error',d.abstractError));
@@ -763,6 +769,15 @@ async function openTrendingPaper(pmid){
   const close=watchTag('button','gray','閉じる');close.addEventListener('click',()=>panel.hidden=true);panel.append(close);
  }catch(e){panel.replaceChildren(watchTag('p','error','要旨の取得に失敗しました：'+e.message));}
 }
+$('trendSummaryStart').addEventListener('click',async()=>{
+ const btn=$('trendSummaryStart');btn.disabled=true;$('trendStatus').textContent='AI要約をバックグラウンド処理に登録しています…';
+ try{
+  const result=await watchRequest('/watch/trending/summaries/start','POST',{category:$('trendCategory').value});
+  await loadTrending();
+  $('trendStatus').textContent+=' ／ '+result.queued+'件の要約を処理待ちに登録しました（一覧を再表示すると進捗を確認できます）。';
+ }catch(e){$('trendStatus').textContent='AI要約を開始できませんでした：'+e.message;}
+ finally{btn.disabled=false;}
+});
 $('trendDays').addEventListener('change',loadTrending);
 $('trendCategory').addEventListener('change',loadTrending);
 $('trendLoad').addEventListener('click',loadTrending);
