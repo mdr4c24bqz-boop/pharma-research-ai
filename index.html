@@ -732,7 +732,7 @@ async function loadTrending(){
    panel.append(watchTag('p','watch-note',r.reason||'注目度は参考指標です。'));
    const sumStatus=r.summary_status==='complete'?'要約済み':r.summary_status==='pending'?'予約済み（順番待ち）':r.summary_status==='queued'?'要約待ち':r.summary_status==='running'?'AI要約中':r.summary_status==='failed'?'要約失敗（再試行は次回）':'未要約';
    panel.append(watchTag('p','watch-note','AI要約：'+sumStatus));
-   if(r.summary_ja){const pre=watchTag('details','');pre.append(watchTag('summary','','日本語AI要約を見る（Abstractに基づく）'),watchTag('div','watch-abstract',r.summary_ja));panel.append(pre);}
+   if(r.summary_ja){const pre=watchTag('details','');pre.append(watchTag('summary','','日本語AI要約を見る（'+(r.source_mode==='fulltext'?'公開全文の本文テキスト':'Abstract')+'に基づく）'),watchTag('div','watch-abstract',r.summary_ja)); if(r.source_note)pre.append(watchTag('p','watch-note','解析範囲：'+r.source_note)); if(r.source_license)pre.append(watchTag('p','watch-note','公開全文のライセンス：'+r.source_license));panel.append(pre);}
    const link=watchTag('a','watch-pubmed-link','PubMedを開く');link.href=safePubmed(r.pmid);link.target='_blank';link.rel='noopener noreferrer';panel.append(link);root.append(panel);
    r._title=button;
   }
@@ -758,9 +758,9 @@ async function openTrendingPaper(pmid){
   const d=await watchRequest('/watch/trending/'+encodeURIComponent(pmid)+'/detail');panel.replaceChildren();
   panel.append(watchTag('h3','watch-paper-head',d.titleJa||d.title));panel.append(watchTag('p','watch-note','原題：'+d.title));
   const link=watchTag('a','watch-pubmed-link','PubMedを開く');link.href=safePubmed(d.pmid);link.target='_blank';link.rel='noopener noreferrer';panel.append(link);
-  panel.append(watchTag('h3','','バックグラウンドAI要約（Abstractに基づく）'));
+  panel.append(watchTag('h3','','バックグラウンドAI要約（'+(d.summarySourceMode==='fulltext'?'公開全文の本文テキスト':'Abstract')+'に基づく）'));
   panel.append(watchTag('div','watch-abstract',d.summaryJa||({'pending':'取得時に予約済みです。毎朝の処理で順番にAI要約します。','queued':'要約待ちです。アプリを閉じても処理は継続します。','running':'AIが要約中です。後で再度開いてください。','failed':'要約に失敗しました。次回の再試行をお待ちください。'}[d.summaryStatus]||'未要約です。「AI要約をバックグラウンドで開始」を押してください。')));
-  if(d.summaryError)panel.append(watchTag('p','watch-note','要約処理の状態：'+d.summaryError));
+  if(d.summarySourceName)panel.append(watchTag('p','watch-note','要約の取得元：'+d.summarySourceName)); if(d.summarySourceLicense)panel.append(watchTag('p','watch-note','ライセンス：'+d.summarySourceLicense)); if(d.summarySourceNote)panel.append(watchTag('p','watch-note','利用範囲：'+d.summarySourceNote)); if(d.summaryError)panel.append(watchTag('p','watch-note','要約処理の状態：'+d.summaryError));
   panel.append(watchTag('h3','','Abstract 日本語訳'),watchTag('div','watch-abstract',d.abstractJa||'日本語訳はまだありません。'));
   if(d.abstractEn){const details=document.createElement('details');details.append(watchTag('summary','','Abstract 英語原文'),watchTag('div','watch-abstract',d.abstractEn));panel.append(details);}
   if(d.abstractError)panel.append(watchTag('p','error',d.abstractError));
