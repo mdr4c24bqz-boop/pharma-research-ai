@@ -1,9 +1,7 @@
-
 {
   "name": "pharma-ai-api",
   "main": "src/index.js",
   "compatibility_date": "2026-11-07",
-
   "d1_databases": [
     {
       "binding": "DB",
@@ -11,13 +9,9 @@
       "database_id": "a34f8467-8a1b-476c-856f-143479336352"
     }
   ],
-
   "queues": {
     "producers": [
-      {
-        "binding": "JOBS_QUEUE",
-        "queue": "pharma-research-jobs"
-      }
+      { "binding": "JOBS_QUEUE", "queue": "pharma-research-jobs" }
     ],
     "consumers": [
       {
