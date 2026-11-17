@@ -480,7 +480,7 @@ async function translateArticle(body, env) {
 
 // 全行程の進捗は jobs.result に保存し、クライアントは短いGETで3秒ごとに参照する。
 // 外部APIの単一HTTP要求を継続して待たず、Queueに次の短い仕事を渡す。
-const VERSION = "research-assistant-v9-5-background-trending-summary-20261116";
+const VERSION = "research-assistant-v9-7-auto-queue-trending-20261117";
 const VALID_COUNTS = [5, 10, 20];
 const STAGE_MAX_ATTEMPTS = 3;
 const ANALYSIS_MAX_ATTEMPTS = 5;
@@ -1118,53 +1118,62 @@ async function runQueueMessage(message, env) {
   message.ack();
 }
 
-// D1履歴の定期メンテナンス。Cron Trigger（0 18 * * * / 毎日03:00 JST）から実行します。
-// 終了ジョブ：最終更新から30日以上経過したものを削除。
-// 中断された未完了ジョブ：作成から30日以上経過したものを削除。
-// 翻訳キャッシュ：180日以上古いものを削除（繰り返し検索時のAPI節約を優先）。
-// 一度の処理量を制限し、D1の負荷を分散します。
+// v9.6: D1容量対策。毎日03:00 JSTの既存Cronで実行。
+// 設定・テーマ・通知購読は削除せず、履歴と一時キャッシュのみ段階的に整理する。
+// D1の各テーブルがまだ作成されていない環境でも安全に動作する。
 async function cleanupD1History(env) {
   if (!env.DB) throw new Error("D1 binding DB が設定されていません");
-  const MAX_PASSES = 10;
-  const limit = 500;
-  const counters = { jobs: 0, segments: 0, translations: 0 };
-  const oldJobs = `id IN (
-    SELECT id FROM jobs
-    WHERE (status IN ('complete','failed') AND datetime(updated_at) < datetime('now','-30 days'))
-       OR (status NOT IN ('complete','failed') AND datetime(created_at) < datetime('now','-30 days'))
-    LIMIT ${limit}
-  )`;
-  for (let n = 0; n < MAX_PASSES; n++) {
-    const result = await env.DB.prepare(`DELETE FROM jobs WHERE ${oldJobs}`).run();
-    const changed = Number(result?.meta?.changes || 0);
-    counters.jobs += changed;
-    if (changed < limit) break;
-  }
-  // 分析時の分割本文・中間分析はjobsとは別テーブルに保存されるため併せて削除。
-  // 初回分析前はanalysis_segmentsテーブルが存在しない可能性があります。
-  const table = await env.DB.prepare("SELECT 1 AS found FROM sqlite_master WHERE type='table' AND name='analysis_segments'").first();
-  if (table) {
-    for (let n = 0; n < MAX_PASSES; n++) {
-      const result = await env.DB.prepare(`DELETE FROM analysis_segments WHERE rowid IN (
-        SELECT rowid FROM analysis_segments WHERE job_id NOT IN (SELECT id FROM jobs) LIMIT 1500
-      )`).run();
-      const changed = Number(result?.meta?.changes || 0);
-      counters.segments += changed;
-      if (changed < 1500) break;
+  const BATCH = 500;
+  const MAX_BATCHES = 10;
+  const counters = {};
+  const exists = async table => !!(await env.DB.prepare(
+    "SELECT 1 AS present FROM sqlite_master WHERE type='table' AND name=?"
+  ).bind(table).first());
+  async function deleteBatched(table, where, params = [], batchSize = BATCH) {
+    if (!(await exists(table))) return 0;
+    let removed = 0;
+    for (let i = 0; i < MAX_BATCHES; i++) {
+      const result = await env.DB.prepare(
+        `DELETE FROM ${table} WHERE rowid IN (SELECT rowid FROM ${table} WHERE ${where} LIMIT ${batchSize})`
+      ).bind(...params).run();
+      const count = Number(result?.meta?.changes || 0);
+      removed += count;
+      if (count < batchSize) break;
     }
+    return removed;
   }
-  const cacheTable = await env.DB.prepare("SELECT 1 AS found FROM sqlite_master WHERE type='table' AND name='translation_cache'").first();
-  if (cacheTable) {
-    for (let n = 0; n < MAX_PASSES; n++) {
-      const result = await env.DB.prepare(`DELETE FROM translation_cache WHERE id IN (
-        SELECT id FROM translation_cache WHERE datetime(saved_at) < datetime('now','-180 days') LIMIT ${limit}
-      )`).run();
-      const changed = Number(result?.meta?.changes || 0);
-      counters.translations += changed;
-      if (changed < limit) break;
-    }
-  }
-  console.log("D1 cleanup completed", JSON.stringify(counters));
+  // 検索・分析ジョブ：完了・失敗から30日、長期中断も30日。
+  counters.jobs = await deleteBatched('jobs',
+    "(status IN ('complete','failed') AND datetime(updated_at) < datetime('now','-30 days')) OR (status NOT IN ('complete','failed') AND datetime(created_at) < datetime('now','-30 days'))"
+  );
+  // ジョブ削除後に孤立した本文分割データを削除。
+  counters.segments = await deleteBatched('analysis_segments',
+    "NOT EXISTS (SELECT 1 FROM jobs WHERE jobs.id=analysis_segments.job_id)", [], 1000
+  );
+  counters.translations = await deleteBatched('translation_cache',
+    "datetime(saved_at) < datetime('now','-180 days')"
+  );
+  // 新着ウォッチ：通知本文と翻訳済み要旨は90日、重複防止記録は180日。
+  counters.notifications = await deleteBatched('watch_notifications',
+    "datetime(created_at) < datetime('now','-90 days')"
+  );
+  counters.seen = await deleteBatched('watch_seen',
+    "datetime(first_seen_at) < datetime('now','-180 days')"
+  );
+  // 古い論文レコードを120日で整理。保存中の論文要約は維持する。
+  counters.trendingPapers = await deleteBatched('trending_papers',
+    "published IS NOT NULL AND date(published) < date('now','-120 days')"
+  );
+  // 論文本体が削除済みの要約は7日間の猶予後に整理。
+  // 以前の論文が一時的に検索結果から消えてもすぐには消さない。
+  counters.trendingSummaries = await deleteBatched('trending_summaries',
+    "NOT EXISTS (SELECT 1 FROM trending_papers p WHERE p.pmid=trending_summaries.pmid) AND datetime(updated_at) < datetime('now','-7 days')"
+  );
+  // 古い失敗履歴を整理し、再取得時に再試行できるようにする。
+  counters.failedSummaries = await deleteBatched('trending_summaries',
+    "status='failed' AND datetime(updated_at) < datetime('now','-30 days')"
+  );
+  console.log('D1 cleanup completed', JSON.stringify(counters));
   return counters;
 }
 
@@ -1471,9 +1480,7 @@ async function checkNewPapers(env){
     else{pushErrors++;console.error('WebPush delivery status',code);}
    }catch(e){pushErrors++;console.error('WebPush delivery failed',String(e).slice(0,160));}
  }
- // 通知は1端末につき最大200件、ウォッチの重複記録は180日で削除。
- await env.DB.prepare(`DELETE FROM watch_notifications WHERE id IN (SELECT id FROM watch_notifications WHERE created_at < datetime('now','-90 days') LIMIT 1000)`).run();
- await env.DB.prepare(`DELETE FROM watch_seen WHERE rowid IN (SELECT rowid FROM watch_seen WHERE first_seen_at < datetime('now','-180 days') LIMIT 1000)`).run();
+ // 履歴の期限切れデータは午前3時の専用Cronで一括整理する。
  console.log('Watch scan completed',JSON.stringify({ok,added,failed,sent,pushErrors}));
  return {ok,added,failed,sent,pushErrors};
 }
@@ -1538,16 +1545,20 @@ async function enqueueTrendingSummaries(env,limit=5,category='all'){
  const categorySql=category==='all'?'':' AND p.category=?';
  const args=category==='all'?[dayAgo,limit]:[dayAgo,category.slice(0,40),limit];
  const query=`SELECT p.pmid FROM trending_papers p LEFT JOIN trending_summaries s ON s.pmid=p.pmid
- WHERE p.published>=date('now','-90 days') AND (s.pmid IS NULL OR (s.status='failed' AND s.attempts<3 AND s.updated_at<?))
- ${categorySql} ORDER BY p.score DESC,p.published DESC LIMIT ?`;
+ WHERE p.published>=date('now','-90 days') AND (s.pmid IS NULL OR s.status='pending' OR (s.status='failed' AND s.attempts<3 AND s.updated_at<?))
+ ${categorySql} ORDER BY CASE WHEN s.status='pending' THEN 0 ELSE 1 END,p.score DESC,p.published DESC LIMIT ?`;
  const rows=await env.DB.prepare(query).bind(...args).all();
  let queued=0;
  for(const row of rows.results||[]){
   const pmid=String(row.pmid);
-  await env.DB.prepare(`INSERT INTO trending_summaries(pmid,status,error,updated_at) VALUES(?,'queued',NULL,CURRENT_TIMESTAMP)
-  ON CONFLICT(pmid) DO UPDATE SET status='queued',error=NULL,updated_at=CURRENT_TIMESTAMP`).bind(pmid).run();
+  // 旧バージョンの未予約論文も自動予約の対象にする。
+  await env.DB.prepare("INSERT OR IGNORE INTO trending_summaries(pmid,status) VALUES(?,'pending')").bind(pmid).run();
+  // 状態を条件付きで変更し、同時実行による二重送信を防止。
+  const claim=await env.DB.prepare(`UPDATE trending_summaries SET status='queued',error=NULL,updated_at=CURRENT_TIMESTAMP
+   WHERE pmid=? AND (status='pending' OR (status='failed' AND attempts<3 AND updated_at<?))`).bind(pmid,dayAgo).run();
+  if(!Number(claim?.meta?.changes||0))continue;
   try{await env.JOBS_QUEUE.send({kind:'trending-summary',pmid});queued++;}
-  catch(e){await env.DB.prepare("UPDATE trending_summaries SET status='failed',error=?,updated_at=CURRENT_TIMESTAMP WHERE pmid=?").bind(errorMessage(e).slice(0,350),pmid).run();}
+  catch(e){await env.DB.prepare("UPDATE trending_summaries SET status='pending',error=?,updated_at=CURRENT_TIMESTAMP WHERE pmid=? AND status='queued'").bind(errorMessage(e).slice(0,350),pmid).run();}
  }
  return {ok:true,queued};
 }
@@ -1596,6 +1607,11 @@ async function refreshTrending(env,weeklyPush){
      reason=CASE WHEN excluded.score>=COALESCE(trending_papers.score,0) THEN excluded.reason ELSE trending_papers.reason END,
      score=MAX(COALESCE(trending_papers.score,0),excluded.score),updated_at=CURRENT_TIMESTAMP`).bind(paper.pmid,paper.title,paper.category,paper.published,paper.citations,paper.study_type,paper.score,paper.reason).run();
     if(Number(res?.meta?.changes||0))added++;
+    // 取得時点で「要約予約」を作成。既存の要約・失敗履歴は上書きしない。
+    // 古い論文は新着予約対象外にする。
+    if(paper.published && paper.published >= new Date(Date.now()-90*86400000).toISOString().slice(0,10)){
+     await env.DB.prepare("INSERT OR IGNORE INTO trending_summaries(pmid,status) VALUES(?,'pending')").bind(paper.pmid).run();
+    }
    }
    categories++;
   }catch(e){failed++;errors.push(category.name+': '+errorMessage(e).slice(0,150));}
@@ -1615,6 +1631,7 @@ async function refreshTrending(env,weeklyPush){
   }
   result.sent=sent;
  }
+ // 取得直後にキュー送信を始める。残りは pending として保存し毎朝順次実行する。
  try{result.summaries=await enqueueTrendingSummaries(env,5);}catch(e){console.warn('Trending summaries enqueue failed',errorMessage(e));}
  console.log('Trending scan completed',JSON.stringify({...result,errors}));return result;
 }
