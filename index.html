@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#245b83">
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./icon-192.png">
-<title>薬学リサーチAI</title>
+<title>薬学リサーチAI（本人専用API）</title>
 <style>
 *{box-sizing:border-box}body{margin:0;padding:18px;background:#f3f6f9;color:#263238;font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN",sans-serif}
 .container{max-width:720px;margin:auto}h1{color:#245b83;text-align:center;font-size:27px;margin:12px 0 22px}h2{color:#245b83;font-size:20px;margin:4px 0 20px}h3{font-size:17px;color:#245b83}.section{padding:22px 18px;background:#fff;border-radius:16px;margin:18px 0;box-shadow:0 3px 12px #1d2b360d}label{display:block;font-weight:700;margin:12px 0 8px}input[type=text],select{width:100%;padding:14px;border:1px solid #b9c9d5;border-radius:10px;font-size:16px;background:#fff}button{width:100%;padding:15px;margin:7px 0;border:0;border-radius:10px;background:#245b83;color:white;font-size:16px;font-weight:700;cursor:pointer}button.secondary{background:#477b9f}button.green{background:#287b65}button.gray{background:#687782}button:disabled{opacity:.55;cursor:not-allowed}.description{font-size:13px;color:#65727c;line-height:1.7}.status{color:#287b65;margin:12px 0;line-height:1.7;white-space:pre-wrap}.error{color:#b02525}.article{border:1px solid #dce3e9;border-radius:12px;background:#fff;padding:17px;margin:15px 0;overflow-wrap:anywhere}.original{color:#526472;white-space:pre-wrap;font-size:14px;line-height:1.6}.translated{white-space:pre-wrap;line-height:1.7}.muted{color:#6c7c88}.ai-output{white-space:pre-wrap;line-height:1.8;background:#f0f6f9;padding:15px;margin:10px 0;border-radius:9px;overflow-wrap:anywhere}a{color:#166a9e;overflow-wrap:anywhere}.soft{border-radius:10px;padding:14px;background:#eef4f8}.article label{font-weight:400;display:flex;gap:9px;align-items:center}.article input[type=checkbox]{width:20px;height:20px;flex:none}.row{display:flex;align-items:center;gap:10px}.row select{max-width:135px}.result-links a{display:block;padding:10px;border-bottom:1px solid #ddd}.tiny{font-size:12px;color:#80909c}.footer{text-align:center;color:#8997a0;font-size:12px;padding:12px}.progress-track{width:100%;height:12px;border-radius:20px;background:#dce8ef;overflow:hidden;margin:12px 0 5px}.progress-bar{height:100%;width:0%;background:#287b65;transition:width .25s ease}.section[hidden]{display:none}textarea{width:100%;min-height:100px;font-size:15px;padding:10px;border:1px solid #b9c9d5;border-radius:8px}input[type=file]{display:block;width:100%;padding:10px;font-size:14px}details{margin:12px 0;padding:9px;border:1px solid #dce3e9;border-radius:9px}summary{cursor:pointer;color:#245b83;font-weight:bold}.info-notice{background:#f3f6f9;border-radius:9px;padding:12px;font-size:13px;line-height:1.7}
@@ -110,11 +110,30 @@
  </div>
  <h3>登録テーマ（最大30件）</h3><div id="watchTopics"></div>
 </section>
-<div class="footer">薬学リサーチAI　｜　医学的判断には必ず原著論文を確認してください。翻訳にはGeminiとMyMemoryを使用し、失敗時は自動切替します。MyMemoryは外部翻訳サービスです。患者情報・機密情報は入力しないでください。Europe PMC経由の検索結果の並び順はPubMed公式と異なる場合があります。AI分析は公開全文XML・端末のPDF/TXTを優先し、取得できなければAbstractを使用します。図・画像・補足資料、PDF中の画像文字は一部抽出されません。全文が取得できない論文の結果には「Abstract限定」と明記します。手元のPDFはブラウザ内でテキストを抽出し、分析時にGeminiへ送信します。論文の利用条件を守ってください。</div>
+<section class="section"><h2>本人専用API設定</h2><p class="description">検索・AI要約・新着通知のデータAPIは32文字以上の本人専用キーで保護しています。キーはこの端末のブラウザ内に保存され、GitHubには保存しません。このWebページ自体は公開のままです。</p><button type="button" class="gray" onclick="resetPrivateToken()">本人専用キーを再入力する</button></section>
+<div class="footer">薬学リサーチAI　｜　医学的判断には必ず原著論文を確認してください。翻訳にはGeminiを利用します（MyMemoryへの新規送信は停止）。患者情報・機密情報は入力しないでください。Europe PMC経由の検索結果の並び順はPubMed公式と異なる場合があります。AI分析は公開全文XML・端末のPDF/TXTを優先し、取得できなければAbstractを使用します。図・画像・補足資料、PDF中の画像文字は一部抽出されません。全文が取得できない論文の結果には「Abstract限定」と明記します。著作権リスク軽減のため手動PDF/TXTのAI送信は停止しています。論文の利用条件を守ってください。</div>
 </div>
 <script>
 "use strict";
 const API = "https://pharma-ai-api.zv2kbz46nh.workers.dev";
+const PRIVATE_TOKEN_KEY='pharma_private_api_token_v9_9';
+function privateToken(){
+  let key=localStorage.getItem(PRIVATE_TOKEN_KEY)||'';
+  if(key.length<32){
+    const received=prompt('本人専用APIキーを入力してください。\nCloudflare SecretのPRIVATE_API_TOKENと同じ文字列です。\n※このiPhoneに保存します。');
+    key=String(received||'').trim();
+    if(key.length<32)throw Error('本人専用キーは32文字以上必要です。未入力の場合、検索・通知情報を取得できません。');
+    localStorage.setItem(PRIVATE_TOKEN_KEY,key);
+  }
+  return key;
+}
+// キーの再入力が必要な場合はSafariのコンソールではなく、アプリ内からリセット。
+function resetPrivateToken(){
+  if(confirm('本人専用キーをこの端末から消去して再入力しますか？')){
+    localStorage.removeItem(PRIVATE_TOKEN_KEY); alert('次回のAPI操作時にキーを入力してください。');
+  }
+}
+function privateHeaders(){return {'X-App-Token':privateToken()};}
 const HISTORY_KEY = "pharmaResearchJobsV3";
 const SEARCH_HISTORY_KEY = "pharmaResearchSearchJobsV1";
 const LINK_HISTORY_KEY = "pharmaResearchLinkJobV3";
@@ -234,7 +253,7 @@ async function post(path, data, timeout = 10000) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeout);
   let res;
-  try { res = await fetch(API + path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data), signal: controller.signal, cache: "no-store" }); }
+  try { res = await fetch(API + path, { method: "POST", headers: { "Content-Type": "application/json",...privateHeaders() }, body: JSON.stringify(data), signal: controller.signal, cache: "no-store" }); }
   catch (e) { throw new Error(e.name === "AbortError" ? "通信の受付時間を超えました。" : "通信エラー：" + e.message); }
   finally { clearTimeout(timer); }
   let body;
@@ -246,7 +265,7 @@ async function getJob(id) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 7000);
   let response;
-  try { response = await fetch(API + "/jobs/" + encodeURIComponent(id), { cache: "no-store", signal: controller.signal }); }
+  try { response = await fetch(API + "/jobs/" + encodeURIComponent(id), { cache: "no-store", signal: controller.signal, headers:privateHeaders() }); }
   catch (e) { throw new Error(e.name === "AbortError" ? "状態確認が7秒で時間切れ" : "状態確認の通信エラー：" + e.message); }
   finally { clearTimeout(timer); }
   const job = await response.json();
@@ -359,6 +378,8 @@ function createCard(paper, index) {
     try{setManualText(pmid,textarea.value,"貼り付け本文");pdfStatus.textContent="貼り付け本文を設定済み（"+textarea.value.trim().length+"文字）";}
     catch(e){pdfStatus.textContent="入力エラー："+e.message;}
   });
+  // 手動PDF/TXTはプライバシー・ライセンス制御のため無効。
+  details.style.display='none';
   card.appendChild(details);
   const analyze = textEl("button", "この論文をAI分析（全文優先）", "green"); analyze.disabled = !pmid; card.appendChild(analyze);
   const jobStatus = textEl("div", "", "status");
@@ -804,7 +825,7 @@ function watchClientToken(){
 async function watchRequest(path,method='GET',body=null){
  const controller=new AbortController();const t=setTimeout(()=>controller.abort(),WATCH_API_TIMEOUT);
  try{
-  const r=await fetch(API+path,{method,headers:{Authorization:'Bearer '+watchClientToken(),...(body===null?{}:{'Content-Type':'application/json'})},body:body===null?undefined:JSON.stringify(body),cache:'no-store',signal:controller.signal});
+  const r=await fetch(API+path,{method,headers:{Authorization:'Bearer '+watchClientToken(),...privateHeaders(),...(body===null?{}:{'Content-Type':'application/json'})},body:body===null?undefined:JSON.stringify(body),cache:'no-store',signal:controller.signal});
   const data=await r.json();if(!r.ok)throw Error(data.error||'HTTP '+r.status);return data;
  }finally{clearTimeout(t);}
 }
