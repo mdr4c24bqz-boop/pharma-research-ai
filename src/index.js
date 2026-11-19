@@ -16,9 +16,9 @@ const ANALYSIS_TIMEOUT_MS = 30000;
 
 function cors(origin) {
   return {
-    "Access-Control-Allow-Origin": origin || "*",
+    "Access-Control-Allow-Origin": origin === "https://mdr4c24bqz-boop.github.io" ? origin : "https://mdr4c24bqz-boop.github.io",
     "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-App-Token",
     "Vary": "Origin"
   };
 }
@@ -251,7 +251,7 @@ async function cachedTranslation(env, text, direction) {
     const key = await translationCacheKey(direction, text);
     await ensureTranslationTable(env);
     const row = await env.DB.prepare('SELECT translated_text,provider FROM translation_cache WHERE id=?').bind(key).first();
-    return row?.translated_text ? {text:row.translated_text,provider:row.provider + '（保存済み）'} : null;
+    return row?.translated_text && !/^MyMemory/i.test(String(row.provider||'')) ? {text:row.translated_text,provider:row.provider + '（保存済み）'} : null;
   } catch { return null; }
 }
 
@@ -264,7 +264,7 @@ async function translateDual(env, source, direction, prefer, options={}) {
     const cached = await cachedTranslation(env, text, direction);
     if (cached) return cached;
   }
-  const order = prefer === 'mymemory' ? ['mymemory','gemini'] : ['gemini','mymemory'];
+  const order = ['gemini']; // 外部MyMemory送信を停止。キャッシュ命中以外はGeminiのみ
   const errors = [];
   for (const provider of order) {
     // すでに当該ジョブ内で上限超過した場合は無駄な再試行を抑制。
@@ -278,8 +278,7 @@ async function translateDual(env, source, direction, prefer, options={}) {
         const response = await generate(env, instructions + '\n\n' + text, 'translate', options.timeoutMs || 16000);
         result = {text:response.text.trim(),provider:'Gemini（' + response.model + '）'};
       } else {
-        const translated = await myMemoryTranslate(env,text,direction,options.onProgress);
-        result = {text:translated,provider:'MyMemory'};
+        throw apiError('MyMemoryへの新規送信は停止しています。',503,'MYMEMORY_DISABLED');
       }
       if (options.cache !== false) await cacheTranslation(env,text,direction,result.text,result.provider);
       return result;
@@ -294,7 +293,7 @@ async function translateDual(env, source, direction, prefer, options={}) {
       }
     }
   }
-  throw apiError('GeminiとMyMemoryの両方で翻訳できませんでした。' + errors.join(' / ').slice(0,370),503,'DUAL_TRANSLATION_FAILED');
+  throw apiError('Geminiで翻訳できませんでした。' + errors.join(' / ').slice(0,370),503,'TRANSLATION_UNAVAILABLE');
 }
 
 // Abstract は表示・翻訳用。分析プロンプトには送信しない。
@@ -480,7 +479,7 @@ async function translateArticle(body, env) {
 
 // 全行程の進捗は jobs.result に保存し、クライアントは短いGETで3秒ごとに参照する。
 // 外部APIの単一HTTP要求を継続して待たず、Queueに次の短い仕事を渡す。
-const VERSION = "research-assistant-v9-8-licensed-fulltext-auto-20261117";
+const VERSION = "research-assistant-v9-9-private-api-20261119";
 const VALID_COUNTS = [5, 10, 20];
 const STAGE_MAX_ATTEMPTS = 3;
 const ANALYSIS_MAX_ATTEMPTS = 5;
@@ -607,6 +606,7 @@ function validatePayload(body) {
   const articles = raw.map((a,i) => {
     const pmid = String(a.pmid || "").trim();
     if (!/^\d{1,12}$/.test(pmid)) throw apiError(`論文${i+1}のPMIDが不正です。`, 400, "BAD_PMID");
+    if (String(a.manualText || "").trim()) throw apiError("本人専用・著作権配慮版では手動PDF/TXTの外部AI送信を停止しています。",403,"MANUAL_FULLTEXT_DISABLED");
     const manualText = String(a.manualText || "").trim();
     if (manualText && manualText.length < 500) throw apiError("手動本文は500文字以上必要です。", 400, "SHORT_MANUAL_TEXT");
     if (manualText.length > 240000) throw apiError("本文は24万文字までです。PDFの一部だけでなく全文を指定してください。", 413, "TEXT_TOO_LARGE");
@@ -861,42 +861,14 @@ function chunkFulltext(text) {
 }
 // Public, machine-readable full text only. No paywall circumvention or publisher HTML scraping.
 async function fetchFulltextByPMID(pmid) {
-  const attempts=[];
-  let metadata=null, pmcid="";
-  const metadataURL=new URL("https://www.ebi.ac.uk/europepmc/webservices/rest/search");
-  metadataURL.search=new URLSearchParams({query:`EXT_ID:${pmid} AND SRC:MED`,format:"json",resultType:"core",pageSize:"3"}).toString();
-  try {
-    const raw=await literatureRequest(metadataURL.toString(),12000,"Europe PMCの論文情報");
-    const parsed=JSON.parse(raw);
-    metadata=(parsed?.resultList?.result||[]).find(x=>String(x.pmid||x.id)===pmid) || null;
-    pmcid=String(metadata?.pmcid||"").toUpperCase();
-  } catch(e){ attempts.push("Europe PMCメタデータ："+errorMessage(e).slice(0,110)); }
-  if (!/^PMC\d+$/.test(pmcid)) {
-    // Official PMC PMID -> PMCID service as an independent discovery method.
-    try {
-      const url=new URL("https://pmc.ncbi.nlm.nih.gov/tools/idconv/api/v1/articles/");
-      url.search=new URLSearchParams({ids:pmid,format:"json",tool:"PharmaResearchAI"}).toString();
-      const info=JSON.parse(await literatureRequest(url.toString(),12000,"PMC ID変換"));
-      pmcid=String(info?.records?.[0]?.pmcid||"").toUpperCase();
-    } catch(e){attempts.push("PMC ID変換："+errorMessage(e).slice(0,110));}
-  }
-  if (/^PMC\d+$/.test(pmcid)) {
-    const endpoints=[
-      {url:`https://www.ebi.ac.uk/europepmc/webservices/rest/${pmcid}/fullTextXML`,source:"Europe PMC 公開全文XML"},
-      {url:`https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pmc&id=${encodeURIComponent(pmcid.slice(3))}&retmode=xml&tool=PharmaResearchAI`,source:"NCBI PMC 本文XML"}
-    ];
-    for(const endpoint of endpoints){
-      try{
-        const xml=await literatureRequest(endpoint.url,15000,endpoint.source);
-        // NCBI may return an XML error or metadata instead of actual content.
-        if(!/<(?:article|pmc-articleset)(?:[\s>])/i.test(xml) || !/<body(?:\s[^>]*)?>/i.test(xml))
-          throw apiError("全文を含む本文XMLではありません。",422,"NOT_FULLTEXT_XML");
-        const text=jatsBodyToText(xml);
-        return {text, pmcid, source:endpoint.source, license:String(metadata?.license||"未確認"),url:endpoint.url,mode:"fulltext"};
-      }catch(e){attempts.push(endpoint.source+"："+errorMessage(e).slice(0,110));}
-    }
-  } else attempts.push("公開全文を示すPMCIDがありません");
-  return {text:"",pmcid: /^PMC\d+$/.test(pmcid)?pmcid:"",source:"",reason:attempts.join(" / ").slice(0,400), mode:"unavailable"};
+  // APIで全文が読めても外部AIへの転送許諾とは限らない。
+  // 注目論文と共通のCC BY / CC0検証に合格した場合に限定する。
+  const full = await fetchLicensedTrendingFulltext(pmid);
+  if (full.mode === 'fulltext') return {
+    text: full.text, pmcid: full.pmcid, source: full.source,
+    license: full.license + ' (' + full.licenseUrl + ')', url: full.url, mode:'fulltext'
+  };
+  return {text:'',pmcid:'',source:'',reason:full.reason||'ライセンスを確認できませんでした',mode:'unavailable'};
 }
 
 async function fetchAbstractByPMID(pmid, suppliedAbstract="") {
@@ -1693,12 +1665,27 @@ async function refreshTrending(env,weeklyPush){
  console.log('Trending scan completed',JSON.stringify({...result,errors}));return result;
 }
 
+// 本人専用API: 秘密鍵はCloudflare Secretだけに置き、GitHub/HTMLには保存しない。
+async function authorizedAppRequest(request, env) {
+  const expected=String(env.PRIVATE_API_TOKEN||'');
+  if(expected.length<32) return false; // Secret未設定ではフェイルクローズ
+  const actual=String(request.headers.get('X-App-Token')||'');
+  if(actual.length!==expected.length) return false;
+  const a=new TextEncoder().encode(actual), b=new TextEncoder().encode(expected);
+  let diff=0;
+  for(let i=0;i<a.length;i++) diff|=(a[i]^b[i]);
+  return diff===0;
+}
 export default {
   async fetch(request, env) {
     const origin = request.headers.get("Origin") || "*";
     if (request.method === "OPTIONS") return new Response(null, { headers: cors(origin) });
     const url = new URL(request.url);
-    if (url.pathname === "/health" && request.method === "GET") return json({ ok: true, version: VERSION, watch: true, pushConfigured: !!env.VAPID_PRIVATE_KEY }, 200, origin);
+    if (url.pathname === "/health" && request.method === "GET") return json({ ok: true, version: VERSION, privateApi: true }, 200, origin);
+    if (!env.PRIVATE_API_TOKEN || String(env.PRIVATE_API_TOKEN).length<32)
+      return json({error:'PRIVATE_API_TOKENが未設定です。Cloudflare Secretに32文字以上を登録してください。'},503,origin);
+    if (!await authorizedAppRequest(request,env))
+      return json({error:'本人専用APIです。アプリの「本人専用キー」を設定してください。'},401,origin);
     if (url.pathname.startsWith("/watch/")) return watchApi(request,env,url,origin);
     if (url.pathname === "/pubmed/search" && request.method === "POST") {
       try { return json(await searchPubmedViaWorker(await request.json(), env), 200, origin); }
